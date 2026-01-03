@@ -80,13 +80,17 @@ class ThermalMonitor: ObservableObject {
             updateThermalState()
         } else {
             thermalNotificationAvailable = false
-            thermalPressureLevel = .unknown
+            DispatchQueue.main.async {
+                self.thermalPressureLevel = .unknown
+            }
         }
     }
     
     private func updateThermalState() {
         guard thermalNotificationAvailable else {
-            thermalPressureLevel = .unknown
+            DispatchQueue.main.async {
+                self.thermalPressureLevel = .unknown
+            }
             return
         }
         
@@ -98,11 +102,9 @@ class ThermalMonitor: ObservableObject {
                 self.thermalPressureRawValue = Int(state)
                 self.thermalPressureLevel = self.levelForState(state)
             }
-        } else {
-            simulateThermalPressure()
         }
     }
-    
+
     private func levelForState(_ state: UInt64) -> ThermalPressureLevel {
         switch state {
         case 0: return .nominal
@@ -111,18 +113,6 @@ class ThermalMonitor: ObservableObject {
         case 3: return .trapping
         case 4: return .sleeping
         default: return .unknown
-        }
-    }
-    
-    private func simulateThermalPressure() {
-        let cpuUsage = SystemMonitor.shared.cpuUsage
-        
-        if cpuUsage > 90 {
-            thermalPressureLevel = .heavy
-        } else if cpuUsage > 70 {
-            thermalPressureLevel = .moderate
-        } else {
-            thermalPressureLevel = .nominal
         }
     }
     

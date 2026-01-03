@@ -9,6 +9,7 @@
 import Foundation
 import Combine
 import ServiceManagement
+import SwiftUI
 
 class SettingsManager: ObservableObject {
     static let shared = SettingsManager()
@@ -63,10 +64,59 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    @Published var thermalAlertThreshold: ThermalMonitor.ThermalPressureLevel = .heavy {
+    @Published var thermalAlertThreshold: String = "heavy" {
         didSet {
-            UserDefaults.standard.set(thermalAlertThreshold.rawValue, forKey: "thermalAlertThreshold")
+            UserDefaults.standard.set(thermalAlertThreshold, forKey: "thermalAlertThreshold")
         }
+    }
+
+    @Published var showNetworkDetails: Bool = true {
+        didSet {
+            UserDefaults.standard.set(showNetworkDetails, forKey: "showNetworkDetails")
+        }
+    }
+
+    @Published var useBitsPerSecond: Bool = false {
+        didSet {
+            UserDefaults.standard.set(useBitsPerSecond, forKey: "useBitsPerSecond")
+        }
+    }
+
+    @Published var networkHistoryPoints: Int = 30 {
+        didSet {
+            UserDefaults.standard.set(networkHistoryPoints, forKey: "networkHistoryPoints")
+        }
+    }
+
+    @Published var lowUsageColor: Color = .green {
+        didSet {
+            UserDefaults.standard.set(convertColorToData(lowUsageColor), forKey: "lowUsageColor")
+        }
+    }
+
+    @Published var mediumUsageColor: Color = .orange {
+        didSet {
+            UserDefaults.standard.set(convertColorToData(mediumUsageColor), forKey: "mediumUsageColor")
+        }
+    }
+
+    @Published var highUsageColor: Color = .red {
+        didSet {
+            UserDefaults.standard.set(convertColorToData(highUsageColor), forKey: "highUsageColor")
+        }
+    }
+
+    private func convertColorToData(_ color: Color) -> Data? {
+        guard let cgColor = color.cgColor else { return nil }
+        return try? NSKeyedArchiver.archivedData(withRootObject: cgColor, requiringSecureCoding: true)
+    }
+
+    private func loadColorFromData(_ data: Data?) -> Color {
+        guard let data = data,
+              let cgColor = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data)?.cgColor else {
+            return .green
+        }
+        return Color(cgColor)
     }
     
     private var cancellables = Set<AnyCancellable>()
@@ -100,10 +150,18 @@ class SettingsManager: ObservableObject {
             memoryAlertThreshold = 85.0
         }
         
-        if let thermalThresholdString = defaults.string(forKey: "thermalAlertThreshold"),
-           let threshold = ThermalMonitor.ThermalPressureLevel(rawValue: thermalThresholdString) {
-            thermalAlertThreshold = threshold
+        if let thermalThresholdString = defaults.string(forKey: "thermalAlertThreshold") {
+            thermalAlertThreshold = thermalThresholdString
         }
+
+        showNetworkDetails = defaults.object(forKey: "showNetworkDetails") == nil ? true : defaults.bool(forKey: "showNetworkDetails")
+        useBitsPerSecond = defaults.bool(forKey: "useBitsPerSecond")
+        networkHistoryPoints = defaults.integer(forKey: "networkHistoryPoints")
+        if networkHistoryPoints == 0 { networkHistoryPoints = 30 }
+
+        lowUsageColor = loadColorFromData(defaults.data(forKey: "lowUsageColor"))
+        mediumUsageColor = loadColorFromData(defaults.data(forKey: "mediumUsageColor"))
+        highUsageColor = loadColorFromData(defaults.data(forKey: "highUsageColor"))
     }
     
     private func setupBindings() {
@@ -127,7 +185,10 @@ class SettingsManager: ObservableObject {
         defaults.set(showNotifications, forKey: "showNotifications")
         defaults.set(cpuAlertThreshold, forKey: "cpuAlertThreshold")
         defaults.set(memoryAlertThreshold, forKey: "memoryAlertThreshold")
-        defaults.set(thermalAlertThreshold.rawValue, forKey: "thermalAlertThreshold")
+        defaults.set(thermalAlertThreshold, forKey: "thermalAlertThreshold")
+        defaults.set(showNetworkDetails, forKey: "showNetworkDetails")
+        defaults.set(useBitsPerSecond, forKey: "useBitsPerSecond")
+        defaults.set(networkHistoryPoints, forKey: "networkHistoryPoints")
     }
     
     private func updateLoginItem() {
@@ -160,7 +221,7 @@ class SettingsManager: ObservableObject {
         showNotifications = false
         cpuAlertThreshold = 90.0
         memoryAlertThreshold = 85.0
-        thermalAlertThreshold = .heavy
+        thermalAlertThreshold = "heavy"
         saveSettings()
     }
     
@@ -174,7 +235,7 @@ class SettingsManager: ObservableObject {
             "showNotifications": showNotifications,
             "cpuAlertThreshold": cpuAlertThreshold,
             "memoryAlertThreshold": memoryAlertThreshold,
-            "thermalAlertThreshold": thermalAlertThreshold.rawValue
+            "thermalAlertThreshold": thermalAlertThreshold
         ]
         
         return try? JSONSerialization.data(withJSONObject: settings, options: .prettyPrinted)
@@ -209,9 +270,8 @@ class SettingsManager: ObservableObject {
         if let memoryThreshold = settings["memoryAlertThreshold"] as? Double {
             memoryAlertThreshold = memoryThreshold
         }
-        if let thermalThreshold = settings["thermalAlertThreshold"] as? String,
-           let threshold = ThermalMonitor.ThermalPressureLevel(rawValue: thermalThreshold) {
-            thermalAlertThreshold = threshold
+        if let thermalThreshold = settings["thermalAlertThreshold"] as? String {
+            thermalAlertThreshold = thermalThreshold
         }
         
         saveSettings()

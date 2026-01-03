@@ -12,6 +12,7 @@ struct MenuBarView: View {
     @EnvironmentObject var systemMonitor: SystemMonitor
     @EnvironmentObject var thermalMonitor: ThermalMonitor
     @EnvironmentObject var settingsManager: SettingsManager
+    @EnvironmentObject var networkMonitor: NetworkMonitor
     
     var body: some View {
         VStack(spacing: 0) {
@@ -155,7 +156,7 @@ struct MenuBarView: View {
                                 Image(systemName: thermalMonitor.thermalPressureLevel.icon)
                                     .font(.title2)
                                     .foregroundColor(thermalMonitor.thermalPressureLevel.color)
-                                
+
                                 VStack(alignment: .leading) {
                                     Text(thermalMonitor.thermalPressureLevel.rawValue)
                                         .font(.headline)
@@ -167,7 +168,83 @@ struct MenuBarView: View {
                             }
                         }
                     }
-                    
+
+                    // Network Section
+                    DashboardSection(title: "Network", icon: "network", color: .teal) {
+                        VStack(spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                            .foregroundColor(.green)
+                                        Text("Download")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Text(formatNetworkSpeed(networkMonitor.networkDownloadSpeed))
+                                        .font(.headline.monospacedDigit())
+                                }
+
+                                Spacer()
+
+                                VStack(alignment: .trailing) {
+                                    HStack(spacing: 4) {
+                                        Text("Upload")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Image(systemName: "arrow.up.circle.fill")
+                                            .foregroundColor(.blue)
+                                    }
+                                    Text(formatNetworkSpeed(networkMonitor.networkUploadSpeed))
+                                        .font(.headline.monospacedDigit())
+                                }
+                            }
+
+                            if !networkMonitor.networkHistory.isEmpty {
+                                Chart(Array(networkMonitor.networkHistory.enumerated()), id: \.offset) { index, speed in
+                                    AreaMark(
+                                        x: .value("Time", index),
+                                        y: .value("Download", speed.download / 1_000_000)
+                                    )
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [.green.opacity(0.4), .green.opacity(0.05)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .interpolationMethod(.catmullRom)
+
+                                    LineMark(
+                                        x: .value("Time", index),
+                                        y: .value("Download", speed.download / 1_000_000)
+                                    )
+                                    .foregroundStyle(.green)
+                                    .interpolationMethod(.catmullRom)
+
+                                    LineMark(
+                                        x: .value("Time", index),
+                                        y: .value("Upload", speed.upload / 1_000_000)
+                                    )
+                                    .foregroundStyle(.blue)
+                                    .interpolationMethod(.catmullRom)
+                                }
+                                .chartYAxis(.hidden)
+                                .chartXAxis(.hidden)
+                                .frame(height: 50)
+                            }
+                            
+                            // Session Data
+                            HStack {
+                                Label("Session: \(formatBytes(UInt64(networkMonitor.totalDownloadSession))) ↓", systemImage: "arrow.down.circle")
+                                Spacer()
+                                Label("\(formatBytes(UInt64(networkMonitor.totalUploadSession))) ↑", systemImage: "arrow.up.circle")
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+
                     // Quick Actions
                     QuickActionsSection()
                 }
@@ -190,6 +267,17 @@ struct MenuBarView: View {
         formatter.countStyle = .memory
         formatter.allowedUnits = [.useGB, .useMB]
         return formatter.string(fromByteCount: Int64(bytes))
+    }
+
+    private func formatNetworkSpeed(_ bytesPerSecond: Double) -> String {
+        let formatter = ByteCountFormatter()
+        if settingsManager.useBitsPerSecond {
+            let bitsPerSecond = Int64(bytesPerSecond * 8)
+            return "\(ByteCountFormatter.string(fromByteCount: bitsPerSecond, countStyle: .binary).replacingOccurrences(of: "B", with: "b"))ps"
+        }
+        formatter.countStyle = .binary
+        formatter.allowedUnits = [.useGB, .useMB, .useKB]
+        return "\(formatter.string(fromByteCount: Int64(bytesPerSecond)))/s"
     }
 }
 
@@ -271,10 +359,8 @@ struct DetailPill: View {
     }
 }
 
-// Reuse existing Footer and Header but simplified
 struct FooterView: View {
     @EnvironmentObject var settingsManager: SettingsManager
-    @Environment(\.openWindow) private var openWindow
     
     var body: some View {
         HStack {
@@ -298,7 +384,7 @@ struct FooterView: View {
                 Image(systemName: "gear")
                     .font(.system(size: 14))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bordered)
             .controlSize(.small)
         }
     }
@@ -306,7 +392,6 @@ struct FooterView: View {
 
 struct QuickActionsSection: View {
     @EnvironmentObject var settingsManager: SettingsManager
-    @Environment(\.openWindow) private var openWindow
     
     var body: some View {
         HStack(spacing: 12) {

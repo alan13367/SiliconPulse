@@ -5,6 +5,7 @@ struct SiliconPulseApp: App {
     @StateObject private var systemMonitor = SystemMonitor.shared
     @StateObject private var thermalMonitor = ThermalMonitor.shared
     @StateObject private var settingsManager = SettingsManager.shared
+    @StateObject private var networkMonitor = NetworkMonitor.shared
     
     @State private var isSettingsWindowPresented = false
     
@@ -14,6 +15,7 @@ struct SiliconPulseApp: App {
                 .environmentObject(systemMonitor)
                 .environmentObject(thermalMonitor)
                 .environmentObject(settingsManager)
+                .environmentObject(networkMonitor)
         } label: {
             MenuBarIconView()
                 .environmentObject(systemMonitor)
@@ -26,7 +28,7 @@ struct SiliconPulseApp: App {
                 .environmentObject(systemMonitor)
                 .environmentObject(thermalMonitor)
                 .environmentObject(settingsManager)
-                .frame(minWidth: 450, minHeight: 550)
+                .environmentObject(networkMonitor)
         }
     }
 }
