@@ -3,6 +3,47 @@ import Combine
 import SwiftUI
 import IOKit
 
+struct CoreUsage: Identifiable {
+    let id: Int
+    let usage: Double
+    let isEfficiencyCore: Bool
+
+    var color: Color {
+        switch usage {
+        case 0..<50: return .green
+        case 50..<80: return .yellow
+        default: return .red
+        }
+    }
+}
+
+struct ProcessInfoData: Identifiable {
+    let id: Int32
+    let name: String
+    let cpuUsage: Double
+    let memoryUsage: UInt64
+}
+
+struct MemoryDetails {
+    var used: UInt64 = 0
+    var total: UInt64 = 0
+    var appMemory: UInt64 = 0
+    var wiredMemory: UInt64 = 0
+    var compressedMemory: UInt64 = 0
+
+    var usedGB: Double {
+        Double(used) / 1_073_741_824.0
+    }
+
+    var totalGB: Double {
+        Double(total) / 1_073_741_824.0
+    }
+
+    var formattedString: String {
+        String(format: "%.1f/%.1f GB", usedGB, totalGB)
+    }
+}
+
 class SystemMonitor: ObservableObject {
     static let shared = SystemMonitor()
 
@@ -15,6 +56,7 @@ class SystemMonitor: ObservableObject {
     @Published var performanceCoreUsages: [Double] = []
     @Published var topProcesses: [ProcessInfoData] = []
     @Published var processCount: Int = 0
+    @Published var currentTemperature: Double = 0.0
 
     @Published var threadCount: Int = 0
     @Published var uptime: TimeInterval = 0
@@ -30,47 +72,9 @@ class SystemMonitor: ObservableObject {
     private var processorInfoCount: mach_msg_type_number_t = 0
     private var previousProcessorInfo: [Int32] = []
     private var previousLoad: host_cpu_load_info?
-
-    struct CoreUsage: Identifiable {
-        let id: Int
-        let usage: Double
-        let isEfficiencyCore: Bool
-
-        var color: Color {
-            switch usage {
-            case 0..<50: return .green
-            case 50..<80: return .yellow
-            default: return .red
-            }
-        }
-    }
-
-    struct ProcessInfoData: Identifiable {
-        let id: Int32
-        let name: String
-        let cpuUsage: Double
-        let memoryUsage: UInt64
-    }
-
-    struct MemoryDetails {
-        var used: UInt64 = 0
-        var total: UInt64 = 0
-        var appMemory: UInt64 = 0
-        var wiredMemory: UInt64 = 0
-        var compressedMemory: UInt64 = 0
-
-        var usedGB: Double {
-            Double(used) / 1_073_741_824.0
-        }
-
-        var totalGB: Double {
-            Double(total) / 1_073_741_824.0
-        }
-
-        var formattedString: String {
-            String(format: "%.1f/%.1f GB", usedGB, totalGB)
-        }
-    }
+    
+    private var previousProcessTimes: [Int32: UInt64] = [:]
+    private var lastUpdateTimestamp: Date = Date()
 
     private init() {
         self.host = mach_host_self()
@@ -80,7 +84,6 @@ class SystemMonitor: ObservableObject {
 
     func startMonitoring() {
         timer?.invalidate()
-        updateInterval = 2.0
         timer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { [weak self] _ in
             self?.updateSystemStats()
         }
@@ -138,6 +141,50 @@ class SystemMonitor: ObservableObject {
         updateProcessInfo()
         updateTopProcesses()
         updateUptime()
+        updateTemperature()
+    }
+
+    private func updateTemperature() {
+        let kIOHIDEventTypeThermal: Int32 = 15
+        let kIOHIDEventFieldThermalTemperature: Int32 = 15 << 16
+        
+        guard let client = IOHIDEventSystemClientCreate(kCFAllocatorDefault) else { return }
+        
+        let matching: [String: Any] = [
+            "PrimaryUsagePage": 0xff00 as NSNumber,
+            "PrimaryUsage": 0x0005 as NSNumber
+        ]
+        
+        IOHIDEventSystemClientSetMatching(client, matching as CFDictionary)
+        
+        guard let services = IOHIDEventSystemClientCopyServices(client) else { return }
+        
+        let servicesArray = services as NSArray
+        var temps: [Double] = []
+        
+        for i in 0..<servicesArray.count {
+            let service = servicesArray[i] as AnyObject
+            let servicePtr = Unmanaged.passUnretained(service).toOpaque()
+            
+            if let productRef = IOHIDServiceClientCopyProperty(servicePtr, "Product" as CFString) {
+                let product = productRef as? String ?? ""
+                if product.contains("tdie") || product.contains("temp") || product.contains("tcal") {
+                    if let eventPtr = IOHIDServiceClientCopyEvent(servicePtr, kIOHIDEventTypeThermal, 0, 0) {
+                        let temp = IOHIDEventGetFloatValue(eventPtr, kIOHIDEventFieldThermalTemperature)
+                        if temp > 0 && temp < 150 {
+                            temps.append(temp)
+                        }
+                    }
+                }
+            }
+        }
+        
+        if !temps.isEmpty {
+            let maxTemp = temps.max() ?? 0.0
+            DispatchQueue.main.async {
+                self.currentTemperature = maxTemp
+            }
+        }
     }
 
     private func updateTopProcesses() {
@@ -154,6 +201,10 @@ class SystemMonitor: ObservableObject {
         
         var processes: [ProcessInfoData] = []
         let actualPidsCount = Int(bytesReturned) / MemoryLayout<Int32>.size
+        
+        let now = Date()
+        let timeDelta = now.timeIntervalSince(lastUpdateTimestamp)
+        lastUpdateTimestamp = now
         
         for i in 0..<actualPidsCount {
             let pid = pids[i]
@@ -172,17 +223,30 @@ class SystemMonitor: ObservableObject {
             let taskSize = Int32(MemoryLayout<proc_taskinfo>.size)
             let taskResult = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &taskInfo, taskSize)
             
-            if taskResult == taskSize {
+            if taskResult > 0 {
+                let totalCPUTime = taskInfo.pti_total_user + taskInfo.pti_total_system
+                var cpuPercentage: Double = 0
+                
+                if let previousTime = previousProcessTimes[pid], timeDelta > 0 {
+                    let cpuTimeDelta = totalCPUTime - previousTime
+                    cpuPercentage = (Double(cpuTimeDelta) / 1_000_000_000.0) / timeDelta * 100.0
+                }
+                
+                previousProcessTimes[pid] = totalCPUTime
+                
                 processes.append(ProcessInfoData(
                     id: pid,
                     name: processName,
-                    cpuUsage: 0,
+                    cpuUsage: cpuPercentage,
                     memoryUsage: taskInfo.pti_resident_size
                 ))
             }
         }
         
-        let top5 = Array(processes.sorted { $0.memoryUsage > $1.memoryUsage }.prefix(5))
+        let currentPids = Set(pids.prefix(actualPidsCount))
+        previousProcessTimes = previousProcessTimes.filter { currentPids.contains($0.key) }
+        
+        let top5 = Array(processes.sorted { $0.cpuUsage > $1.cpuUsage }.prefix(5))
         
         DispatchQueue.main.async {
             self.topProcesses = top5
@@ -250,10 +314,8 @@ class SystemMonitor: ObservableObject {
                     self.addToHistory(array: &self.cpuHistory, value: usage)
                 }
             }
-
             previousLoad = load
         }
-
         updateRealCoreUsages()
     }
 
@@ -312,7 +374,6 @@ class SystemMonitor: ObservableObject {
                 self.performanceCoreUsages = newPerfUsages
             }
         }
-
         previousProcessorInfo = infoArray
     }
 
@@ -329,42 +390,27 @@ class SystemMonitor: ObservableObject {
 
         let result = withUnsafeMutablePointer(to: &vmStats) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(host,
-                                 HOST_VM_INFO64,
-                                 $0,
-                                 &count)
+                host_statistics64(host, HOST_VM_INFO64, $0, &count)
             }
         }
 
-        guard result == KERN_SUCCESS else {
-            return
-        }
+        guard result == KERN_SUCCESS else { return }
 
         let pageSize = UInt64(vm_page_size)
-
         let free = UInt64(vmStats.free_count) * pageSize
         let active = UInt64(vmStats.active_count) * pageSize
         let inactive = UInt64(vmStats.inactive_count) * pageSize
         let wired = UInt64(vmStats.wire_count) * pageSize
         let compressed = UInt64(vmStats.compressor_page_count) * pageSize
 
-        // Activity Monitor's "Memory Used" is: App Memory + Wired Memory + Compressed Memory
-        // App Memory is essentially Internal - Purgeable
         let internalPages = UInt64(vmStats.internal_page_count)
         let purgeablePages = UInt64(vmStats.purgeable_count)
         let appMemory = (internalPages - purgeablePages) * pageSize
-        
-        // Also consider the "Cached Files" which Activity Monitor shows separately.
-        // Cached Files = External + Purgeable
-        let externalPages = UInt64(vmStats.external_page_count)
-        let cachedFiles = (externalPages + purgeablePages) * pageSize
-
         let used = appMemory + wired + compressed
 
         var physicalMemory: UInt64 = 0
         var size = MemoryLayout<UInt64>.size
         if sysctlbyname("hw.memsize", &physicalMemory, &size, nil, 0) != 0 {
-             // Fallback
              physicalMemory = used + free + inactive
         }
 
@@ -394,9 +440,7 @@ class SystemMonitor: ObservableObject {
 
         var threadCount: UInt32 = 0
         var threadCountSize = MemoryLayout<UInt32>.size
-
-        let threadResult = sysctlbyname("hw.nthreads", &threadCount, &threadCountSize, nil, 0)
-        if threadResult == 0 {
+        if sysctlbyname("hw.nthreads", &threadCount, &threadCountSize, nil, 0) == 0 {
             DispatchQueue.main.async {
                 self.threadCount = Int(threadCount)
             }
@@ -437,6 +481,24 @@ func proc_name(_ pid: Int32, _ buffer: UnsafeMutablePointer<CChar>, _ buffersize
 
 @_silgen_name("proc_pidinfo")
 func proc_pidinfo(_ pid: Int32, _ flavor: Int32, _ arg: UInt64, _ buffer: UnsafeMutableRawPointer?, _ buffersize: Int32) -> Int32
+
+@_silgen_name("IOHIDEventSystemClientCreate")
+func IOHIDEventSystemClientCreate(_ allocator: CFAllocator?) -> UnsafeMutableRawPointer?
+
+@_silgen_name("IOHIDEventSystemClientSetMatching")
+func IOHIDEventSystemClientSetMatching(_ client: UnsafeMutableRawPointer, _ matching: CFDictionary) -> Int32
+
+@_silgen_name("IOHIDEventSystemClientCopyServices")
+func IOHIDEventSystemClientCopyServices(_ client: UnsafeMutableRawPointer) -> CFArray?
+
+@_silgen_name("IOHIDServiceClientCopyProperty")
+func IOHIDServiceClientCopyProperty(_ service: UnsafeMutableRawPointer, _ property: CFString) -> CFTypeRef?
+
+@_silgen_name("IOHIDServiceClientCopyEvent")
+func IOHIDServiceClientCopyEvent(_ service: UnsafeMutableRawPointer, _ type: Int32, _ options: Int32, _ flags: Int32) -> UnsafeMutableRawPointer?
+
+@_silgen_name("IOHIDEventGetFloatValue")
+func IOHIDEventGetFloatValue(_ event: UnsafeMutableRawPointer, _ field: Int32) -> Double
 
 struct proc_taskinfo {
     var pti_virtual_size: UInt64

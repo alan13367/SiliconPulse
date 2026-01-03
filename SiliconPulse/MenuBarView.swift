@@ -28,51 +28,84 @@ struct MenuBarView: View {
                     // CPU Section with Chart
                     DashboardSection(title: "CPU & GPU", icon: "cpu", color: .blue) {
                         VStack(spacing: 12) {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text("CPU")
-                                        .font(.caption)
-                                        .foregroundColor(.blue)
-                                    Text("\(Int(systemMonitor.cpuUsage))%")
-                                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                                        .foregroundColor(.blue)
+                            HStack(alignment: .bottom, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text("CPU")
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                        Spacer()
+                                        Text("\(Int(systemMonitor.cpuUsage))%")
+                                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                                            .foregroundColor(.blue)
+                                    }
+                                    ProgressView(value: systemMonitor.cpuUsage, total: 100)
+                                        .tint(.blue)
                                 }
                                 
-                                Spacer()
-                                
-                                VStack(alignment: .trailing) {
-                                    Text("GPU")
-                                        .font(.caption)
-                                        .foregroundColor(.green)
-                                    Text("\(Int(systemMonitor.gpuUsage))%")
-                                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                                        .foregroundColor(.green)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text("GPU")
+                                            .font(.caption)
+                                            .foregroundColor(.green)
+                                        Spacer()
+                                        Text("\(Int(systemMonitor.gpuUsage))%")
+                                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                                            .foregroundColor(.green)
+                                    }
+                                    ProgressView(value: systemMonitor.gpuUsage, total: 100)
+                                        .tint(.green)
                                 }
-                            }
-                            
-                            HStack(spacing: 8) {
-                                ProgressView(value: systemMonitor.cpuUsage, total: 100)
-                                    .tint(.blue)
-                                ProgressView(value: systemMonitor.gpuUsage, total: 100)
-                                    .tint(.green)
+                                
+                                TemperatureGaugeView(temperature: systemMonitor.currentTemperature, useFahrenheit: settingsManager.useFahrenheit)
                             }
                             
                             // Combined History Chart
                             if !systemMonitor.cpuHistory.isEmpty {
                                 Chart {
                                     ForEach(Array(systemMonitor.cpuHistory.enumerated()), id: \.offset) { index, value in
+                                        AreaMark(
+                                            x: .value("Time", index),
+                                            y: .value("Usage", value),
+                                            series: .value("Type", "CPU")
+                                        )
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.blue.opacity(0.3), .blue.opacity(0.05)],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            )
+                                        )
+                                        .interpolationMethod(.catmullRom)
+                                        
                                         LineMark(
                                             x: .value("Time", index),
-                                            y: .value("Usage", value)
+                                            y: .value("Usage", value),
+                                            series: .value("Type", "CPU")
                                         )
                                         .foregroundStyle(.blue)
                                         .interpolationMethod(.catmullRom)
                                     }
                                     
                                     ForEach(Array(systemMonitor.gpuHistory.enumerated()), id: \.offset) { index, value in
+                                        AreaMark(
+                                            x: .value("Time", index),
+                                            y: .value("Usage", value),
+                                            series: .value("Type", "GPU")
+                                        )
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.green.opacity(0.3), .green.opacity(0.05)],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            )
+                                        )
+                                        .interpolationMethod(.catmullRom)
+                                        
                                         LineMark(
                                             x: .value("Time", index),
-                                            y: .value("Usage", value)
+                                            y: .value("Usage", value),
+                                            series: .value("Type", "GPU")
                                         )
                                         .foregroundStyle(.green)
                                         .interpolationMethod(.catmullRom)
@@ -164,19 +197,29 @@ struct MenuBarView: View {
                     // Thermal
                     if settingsManager.showThermalInfo {
                         DashboardSection(title: "Thermal", icon: "thermometer", color: .red) {
-                            HStack {
-                                Image(systemName: thermalMonitor.thermalPressureLevel.icon)
-                                    .font(.title2)
-                                    .foregroundColor(thermalMonitor.thermalPressureLevel.color)
-
+                            HStack(spacing: 16) {
                                 VStack(alignment: .leading) {
-                                    Text(thermalMonitor.thermalPressureLevel.rawValue)
-                                        .font(.headline)
+                                    HStack {
+                                        Image(systemName: thermalMonitor.thermalPressureLevel.icon)
+                                            .foregroundColor(thermalMonitor.thermalPressureLevel.color)
+                                        Text(thermalMonitor.thermalPressureLevel.rawValue)
+                                            .font(.headline)
+                                    }
                                     Text(thermalMonitor.thermalPressureLevel.description)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
+                                
                                 Spacer()
+                                
+                                 VStack(alignment: .trailing) {
+                                    Text("TEMP")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(formatTemperature(systemMonitor.currentTemperature))
+                                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                                        .foregroundColor(systemMonitor.currentTemperature > 60 ? .orange : .primary)
+                                }
                             }
                         }
                     }
@@ -267,10 +310,13 @@ struct MenuBarView: View {
                             } else {
                                 ForEach(systemMonitor.topProcesses) { process in
                                     HStack {
-                                        Text(process.name)
+                                         Text(process.name)
                                             .font(.caption)
                                             .fontWeight(.medium)
                                         Spacer()
+                                        Text(String(format: "%.1f%%", process.cpuUsage))
+                                            .font(.caption2.monospacedDigit())
+                                            .foregroundColor(.blue)
                                         Text(formatBytes(process.memoryUsage))
                                             .font(.caption2.monospacedDigit())
                                             .foregroundColor(.secondary)
@@ -297,6 +343,14 @@ struct MenuBarView: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
     
+    private func formatTemperature(_ celsius: Double) -> String {
+        if settingsManager.useFahrenheit {
+            let fahrenheit = (celsius * 9/5) + 32
+            return String(format: "%.0f°F", fahrenheit)
+        }
+        return String(format: "%.0f°C", celsius)
+    }
+
     private func formatBytes(_ bytes: UInt64) -> String {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .memory
@@ -391,6 +445,87 @@ struct DetailPill: View {
         .padding(.vertical, 4)
         .background(Color.gray.opacity(0.1))
         .cornerRadius(6)
+    }
+}
+
+// MARK: - Temperature Gauge Component
+
+struct TemperatureGaugeView: View {
+    let temperature: Double
+    let useFahrenheit: Bool
+    
+    private var displayTemperature: Double {
+        useFahrenheit ? (temperature * 9/5) + 32 : temperature
+    }
+    
+    private var temperatureString: String {
+        String(format: "%.0f°", displayTemperature)
+    }
+    
+    private var temperatureColor: Color {
+        switch temperature {
+        case ..<40: return .green
+        case 40..<55: return .yellow
+        case 55..<70: return .orange
+        case 70..<85: return .red
+        default: return .purple
+        }
+    }
+    
+    private var temperatureGradient: AngularGradient {
+        AngularGradient(
+            gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
+            center: .center,
+            startAngle: .degrees(135),
+            endAngle: .degrees(45)
+        )
+    }
+    
+    private var gaugeProgress: Double {
+        // Map temperature from 20-100°C to 0-1 range
+        let normalized = (temperature - 20) / 80
+        return min(max(normalized, 0), 1)
+    }
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                // Background arc
+                Circle()
+                    .trim(from: 0, to: 0.75)
+                    .stroke(
+                        Color.gray.opacity(0.2),
+                        style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(135))
+                
+                // Colored arc based on temperature
+                Circle()
+                    .trim(from: 0, to: gaugeProgress * 0.75)
+                    .stroke(
+                        temperatureGradient,
+                        style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(135))
+                    .animation(.easeInOut(duration: 0.5), value: gaugeProgress)
+                
+                // Temperature value
+                VStack(spacing: 0) {
+                    Image(systemName: "thermometer.medium")
+                        .font(.system(size: 10))
+                        .foregroundColor(temperatureColor)
+                    
+                    Text(temperatureString)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(temperatureColor)
+                }
+            }
+            .frame(width: 52, height: 52)
+            
+            Text("CPU")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.secondary)
+        }
     }
 }
 

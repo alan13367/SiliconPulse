@@ -111,6 +111,14 @@ struct DisplaySettingsView: View {
                 Toggle("Show Thermal Info", isOn: $settingsManager.showThermalInfo)
             }
             
+            Section(header: Text("Units")) {
+                Picker("Temperature Unit", selection: $settingsManager.useFahrenheit) {
+                    Text("Celsius (°C)").tag(false)
+                    Text("Fahrenheit (°F)").tag(true)
+                }
+                .pickerStyle(.radioGroup)
+            }
+            
             Section(header: Text("Colors")) {
                 ColorPicker("Normal Usage", selection: $settingsManager.lowUsageColor)
                 ColorPicker("Medium Usage", selection: $settingsManager.mediumUsageColor)

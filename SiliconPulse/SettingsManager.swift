@@ -88,6 +88,12 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    @Published var useFahrenheit: Bool = false {
+        didSet {
+            UserDefaults.standard.set(useFahrenheit, forKey: "useFahrenheit")
+        }
+    }
+
     @Published var lowUsageColor: Color = .green {
         didSet {
             UserDefaults.standard.set(convertColorToData(lowUsageColor), forKey: "lowUsageColor")
@@ -159,6 +165,8 @@ class SettingsManager: ObservableObject {
         networkHistoryPoints = defaults.integer(forKey: "networkHistoryPoints")
         if networkHistoryPoints == 0 { networkHistoryPoints = 30 }
 
+        useFahrenheit = defaults.bool(forKey: "useFahrenheit")
+
         lowUsageColor = loadColorFromData(defaults.data(forKey: "lowUsageColor"))
         mediumUsageColor = loadColorFromData(defaults.data(forKey: "mediumUsageColor"))
         highUsageColor = loadColorFromData(defaults.data(forKey: "highUsageColor"))
@@ -189,6 +197,7 @@ class SettingsManager: ObservableObject {
         defaults.set(showNetworkDetails, forKey: "showNetworkDetails")
         defaults.set(useBitsPerSecond, forKey: "useBitsPerSecond")
         defaults.set(networkHistoryPoints, forKey: "networkHistoryPoints")
+        defaults.set(useFahrenheit, forKey: "useFahrenheit")
     }
     
     private func updateLoginItem() {
