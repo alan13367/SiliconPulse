@@ -1,4 +1,4 @@
-# SiliconPulse 
+# <img src="SiliconPulse/Assets.xcassets/AppIcon.appiconset/icon_32x32.png" width="32" height="32" align="center"> SiliconPulse
 
 SiliconPulse is a high-performance, lightweight system monitor designed specifically for Apple Silicon macOS. It lives in your menu bar and provides real-time insights into your Mac's CPU, Memory, Network, and Thermal states using native Mach APIs and SystemConfiguration frameworks.
 
