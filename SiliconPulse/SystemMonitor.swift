@@ -142,30 +142,31 @@ class SystemMonitor: ObservableObject {
 
     private func updateTopProcesses() {
         let PROC_ALL_PIDS: UInt32 = 1
-        let PROC_PIDTBSDINFO: Int32 = 3
         let PROC_PIDTASKINFO: Int32 = 4
         let MAX_PATH: UInt32 = 1024
         
         let count = proc_listpids(PROC_ALL_PIDS, 0, nil, 0)
         guard count > 0 else { return }
         
-        let pidsCount = Int(count) / MemoryLayout<Int32>.size
-        var pids = [Int32](repeating: 0, count: pidsCount)
-        let actualCount = proc_listpids(PROC_ALL_PIDS, 0, &pids, count)
+        let pidsCapacity = Int(count)
+        var pids = [Int32](repeating: 0, count: pidsCapacity)
+        let bytesReturned = proc_listpids(PROC_ALL_PIDS, 0, &pids, Int32(pidsCapacity * MemoryLayout<Int32>.size))
         
         var processes: [ProcessInfoData] = []
-        let actualPidsCount = Int(actualCount) / MemoryLayout<Int32>.size
+        let actualPidsCount = Int(bytesReturned) / MemoryLayout<Int32>.size
         
         for i in 0..<actualPidsCount {
             let pid = pids[i]
             if pid <= 0 { continue }
             
             let nameBuffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(MAX_PATH))
+            nameBuffer.initialize(to: 0)
             defer { nameBuffer.deallocate() }
-            let nameResult = proc_name(pid, nameBuffer, MAX_PATH)
-            let processName = nameResult > 0 ? String(cString: nameBuffer) : "Unknown"
             
-            if processName == "kernel_task" || processName == "Unknown" || processName == "SiliconPulse" { continue }
+            let nameResult = proc_name(pid, nameBuffer, MAX_PATH)
+            let processName = nameResult > 0 ? String(cString: nameBuffer) : ""
+            
+            if processName.isEmpty || processName == "kernel_task" || processName == "SiliconPulse" { continue }
 
             var taskInfo = proc_taskinfo(pti_virtual_size: 0, pti_resident_size: 0, pti_total_user: 0, pti_total_system: 0, pti_threads_user: 0, pti_threads_system: 0, pti_policy: 0, pti_faults: 0, pti_pageins: 0, pti_cow_faults: 0, pti_messages_sent: 0, pti_messages_received: 0, pti_syscalls_mach: 0, pti_syscalls_unix: 0, pti_csw: 0, pti_threadnum: 0, pti_numrunning: 0, pti_priority: 0)
             let taskSize = Int32(MemoryLayout<proc_taskinfo>.size)
@@ -175,7 +176,7 @@ class SystemMonitor: ObservableObject {
                 processes.append(ProcessInfoData(
                     id: pid,
                     name: processName,
-                    cpuUsage: 0, // Simplified
+                    cpuUsage: 0,
                     memoryUsage: taskInfo.pti_resident_size
                 ))
             }

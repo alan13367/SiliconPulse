@@ -32,9 +32,10 @@ struct MenuBarView: View {
                                 VStack(alignment: .leading) {
                                     Text("CPU")
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(.blue)
                                     Text("\(Int(systemMonitor.cpuUsage))%")
                                         .font(.system(size: 24, weight: .bold, design: .rounded))
+                                        .foregroundColor(.blue)
                                 }
                                 
                                 Spacer()
@@ -42,10 +43,18 @@ struct MenuBarView: View {
                                 VStack(alignment: .trailing) {
                                     Text("GPU")
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(.green)
                                     Text("\(Int(systemMonitor.gpuUsage))%")
                                         .font(.system(size: 24, weight: .bold, design: .rounded))
+                                        .foregroundColor(.green)
                                 }
+                            }
+                            
+                            HStack(spacing: 8) {
+                                ProgressView(value: systemMonitor.cpuUsage, total: 100)
+                                    .tint(.blue)
+                                ProgressView(value: systemMonitor.gpuUsage, total: 100)
+                                    .tint(.green)
                             }
                             
                             // Combined History Chart
@@ -248,46 +257,25 @@ struct MenuBarView: View {
                         }
                     }
 
-                    // Quick Actions
+                    // Top Processes Section
                     DashboardSection(title: "Top Processes", icon: "list.bullet", color: .secondary) {
                         VStack(spacing: 8) {
-                            ForEach(systemMonitor.topProcesses) { process in
-                                HStack {
-                                    Text(process.name)
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                    Spacer()
-                                    Text(formatBytes(process.memoryUsage))
-                                        .font(.caption2.monospacedDigit())
-                                        .foregroundColor(.secondary)
-                                }
-                            }
                             if systemMonitor.topProcesses.isEmpty {
                                 Text("No data available")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-
-                    // Top Processes
-                    DashboardSection(title: "Top Processes", icon: "list.bullet", color: .secondary) {
-                        VStack(spacing: 8) {
-                            ForEach(systemMonitor.topProcesses) { process in
-                                HStack {
-                                    Text(process.name)
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                    Spacer()
-                                    Text(formatBytes(process.memoryUsage))
-                                        .font(.caption2.monospacedDigit())
-                                        .foregroundColor(.secondary)
+                            } else {
+                                ForEach(systemMonitor.topProcesses) { process in
+                                    HStack {
+                                        Text(process.name)
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                        Spacer()
+                                        Text(formatBytes(process.memoryUsage))
+                                            .font(.caption2.monospacedDigit())
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
-                            }
-                            if systemMonitor.topProcesses.isEmpty {
-                                Text("No data available")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
                             }
                         }
                     }
