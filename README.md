@@ -1,45 +1,60 @@
-# SiliconPulse
+# SiliconPulse 
 
-SiliconPulse is a sleek, real-time CPU monitoring application for macOS that lives right in your menu bar. Built with SwiftUI and Swift Charts, it provides a lightweight and visually appealing way to keep tabs on your system's performance.
+SiliconPulse is a high-performance, lightweight system monitor designed specifically for Apple Silicon macOS. It lives in your menu bar and provides real-time insights into your Mac's CPU, Memory, Network, and Thermal states using native Mach APIs and SystemConfiguration frameworks.
 
-![SiliconPulse Mockup](file:///Users/alan/.gemini/antigravity/brain/50f40305-c385-45e9-88a5-3a6f02950cc5/silicon_pulse_mockup_1766859971797.png)
+![SiliconPulse Header](https://raw.githubusercontent.com/alan13367/SiliconPulse/main/SiliconPulse/Assets.xcassets/AppIcon.appiconset/icon_256x256.png)
 
 ## Features
 
-- **Menu Bar Integration**: Real-time CPU percentage display directly in the macOS menu bar.
-- **Visual Dashboard**: A beautiful, interactive popover dashboard with a live CPU usage chart.
-- **Real-time Monitoring**: High-frequency updates using native Mach APIs for accurate CPU load calculation.
-- **Minimalist Design**: Clean, glassmorphism-inspired UI that fits perfectly with the macOS aesthetic.
+- **CPU & GPU Monitoring:** Real-time usage tracking for both CPU (per-core) and GPU utilization, with combined live history charts.
+- **Top Processes:** Live list of the top 5 resource-heavy processes by memory usage.
+- **Memory Management:** Detailed breakdown of App Memory, Wired, and Compressed usage, matching macOS Activity Monitor's calculation logic.
+- **Network Stats:** High-precision bandwidth tracking with dynamic interface switching (Wi-Fi/Ethernet) and session-based data totals.
+- **Thermal Awareness:** Monitor system thermal pressure levels (Nominal to Critical) to understand when your Mac is throttling.
+- **Highly Customizable:**
+    - Adjustable update intervals (1s to 5s).
+    - Toggleable display sections.
+    - Customizable usage colors.
+    - Bits per second (bps) or Bytes per second (B/s) network units.
+- **Native Experience:** Built with SwiftUI and Swift Charts for a modern, fluid macOS aesthetic.
 
-## Technical Details
+## Installation
 
-- **Language**: Swift
-- **Framework**: SwiftUI
-- **Visuals**: Swift Charts
-- **System API**: `host_statistics` (Mach API) for low-level CPU metrics.
-- **Architecture**: ObservableObject-based state management for real-time reactivity.
-
-## Getting Started
-
-### Prerequisites
-
-- macOS (12.0+)
-- Xcode (latest recommended)
-
-### Build & Run
-
-1. Clone the repository.
-2. Open `SiliconPulse.xcodeproj` in Xcode.
-3. Select your target (SiliconPulse) and destination (My Mac).
-4. Press `Cmd + R` to build and run.
-
-The application will appear in your menu bar as "CPU %". Click it to view the full dashboard.
+1. Download the latest `SiliconPulse.dmg` from the [Releases](https://github.com/alan13367/SiliconPulse/releases) page.
+2. Open the DMG and drag **SiliconPulse** to your **Applications** folder.
+3. Launch the app. (Since it is self-signed, you may need to Right-Click > Open for the first run).
 
 ## Usage
 
-- **View Live Chart**: Click the menu bar icon to open the dashboard and see the last 30 seconds of CPU activity.
-- **Quit**: Use the "Quit" button in the dashboard or press `Cmd + Q` while the dashboard is open.
+Once launched, SiliconPulse lives in your menu bar. Click the icon to open the main dashboard. 
+
+- **Gear Icon:** Access the Preferences window to customize your experience.
+- **Refresh:** Manually trigger a refresh of all system stats.
+- **Quit:** Safely close the application.
+
+## Development
+
+### Requirements
+- macOS 13.0+
+- Xcode 14.0+ (for source modifications)
+- Swift 5.7+
+
+### Manual Build
+If you wish to build from source manually without Xcode:
+```bash
+swiftc -sdk $(xcrun --show-sdk-path --sdk macosx) SiliconPulse/*.swift \
+-o SiliconPulseApp \
+-framework SwiftUI -framework Charts -framework SystemConfiguration \
+-framework AppKit -framework IOKit -framework ServiceManagement
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request or open an issue for feature requests and bug reports.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
-
-*Designed for high performance and visual excellence.*
+*Created by Alan Beltran Pozo. Optimized for Apple Silicon.*

@@ -7,16 +7,20 @@ class SystemMonitor: ObservableObject {
     static let shared = SystemMonitor()
 
     @Published var cpuUsage: Double = 0.0
+    @Published var gpuUsage: Double = 0.0
     @Published var memoryUsage: Double = 0.0
     @Published var memoryDetails: MemoryDetails = MemoryDetails()
     @Published var coreUsages: [CoreUsage] = []
     @Published var efficiencyCoreUsages: [Double] = []
     @Published var performanceCoreUsages: [Double] = []
+    @Published var topProcesses: [ProcessInfoData] = []
     @Published var processCount: Int = 0
+
     @Published var threadCount: Int = 0
     @Published var uptime: TimeInterval = 0
 
     @Published var cpuHistory: [Double] = Array(repeating: 0, count: 60)
+    @Published var gpuHistory: [Double] = Array(repeating: 0, count: 60)
     @Published var memoryHistory: [Double] = Array(repeating: 0, count: 60)
 
     private var timer: Timer?
@@ -39,6 +43,13 @@ class SystemMonitor: ObservableObject {
             default: return .red
             }
         }
+    }
+
+    struct ProcessInfoData: Identifiable {
+        let id: Int32
+        let name: String
+        let cpuUsage: Double
+        let memoryUsage: UInt64
     }
 
     struct MemoryDetails {
@@ -122,9 +133,94 @@ class SystemMonitor: ObservableObject {
 
     private func updateSystemStats() {
         updateCPUUsage()
+        updateGPUUsage()
         updateMemoryUsage()
         updateProcessInfo()
+        updateTopProcesses()
         updateUptime()
+    }
+
+    private func updateTopProcesses() {
+        let PROC_ALL_PIDS: UInt32 = 1
+        let PROC_PIDTBSDINFO: Int32 = 3
+        let PROC_PIDTASKINFO: Int32 = 4
+        let MAX_PATH: UInt32 = 1024
+        
+        let count = proc_listpids(PROC_ALL_PIDS, 0, nil, 0)
+        guard count > 0 else { return }
+        
+        let pidsCount = Int(count) / MemoryLayout<Int32>.size
+        var pids = [Int32](repeating: 0, count: pidsCount)
+        let actualCount = proc_listpids(PROC_ALL_PIDS, 0, &pids, count)
+        
+        var processes: [ProcessInfoData] = []
+        let actualPidsCount = Int(actualCount) / MemoryLayout<Int32>.size
+        
+        for i in 0..<actualPidsCount {
+            let pid = pids[i]
+            if pid <= 0 { continue }
+            
+            let nameBuffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(MAX_PATH))
+            defer { nameBuffer.deallocate() }
+            let nameResult = proc_name(pid, nameBuffer, MAX_PATH)
+            let processName = nameResult > 0 ? String(cString: nameBuffer) : "Unknown"
+            
+            if processName == "kernel_task" || processName == "Unknown" || processName == "SiliconPulse" { continue }
+
+            var taskInfo = proc_taskinfo(pti_virtual_size: 0, pti_resident_size: 0, pti_total_user: 0, pti_total_system: 0, pti_threads_user: 0, pti_threads_system: 0, pti_policy: 0, pti_faults: 0, pti_pageins: 0, pti_cow_faults: 0, pti_messages_sent: 0, pti_messages_received: 0, pti_syscalls_mach: 0, pti_syscalls_unix: 0, pti_csw: 0, pti_threadnum: 0, pti_numrunning: 0, pti_priority: 0)
+            let taskSize = Int32(MemoryLayout<proc_taskinfo>.size)
+            let taskResult = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &taskInfo, taskSize)
+            
+            if taskResult == taskSize {
+                processes.append(ProcessInfoData(
+                    id: pid,
+                    name: processName,
+                    cpuUsage: 0, // Simplified
+                    memoryUsage: taskInfo.pti_resident_size
+                ))
+            }
+        }
+        
+        let top5 = Array(processes.sorted { $0.memoryUsage > $1.memoryUsage }.prefix(5))
+        
+        DispatchQueue.main.async {
+            self.topProcesses = top5
+        }
+    }
+
+    private func updateGPUUsage() {
+        var iterator: io_iterator_t = 0
+        let result = IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOAccelerator"), &iterator)
+        
+        if result == KERN_SUCCESS {
+            var service = IOIteratorNext(iterator)
+            while service != 0 {
+                if let props = getIOProperties(service: service) {
+                    if let perfStats = props["PerformanceStatistics"] as? [String: Any],
+                       let deviceUtil = perfStats["Device Utilization %"] as? Int {
+                        DispatchQueue.main.async {
+                            self.gpuUsage = Double(deviceUtil)
+                            self.addToHistory(array: &self.gpuHistory, value: Double(deviceUtil))
+                        }
+                        IOObjectRelease(service)
+                        break
+                    }
+                }
+                IOObjectRelease(service)
+                service = IOIteratorNext(iterator)
+            }
+            IOObjectRelease(iterator)
+        }
+    }
+
+    private func getIOProperties(service: io_service_t) -> [String: Any]? {
+        var properties: Unmanaged<CFMutableDictionary>?
+        let result = IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0)
+        
+        if result == KERN_SUCCESS, let properties = properties {
+            return properties.takeRetainedValue() as? [String: Any]
+        }
+        return nil
     }
 
     private func updateCPUUsage() {
@@ -334,3 +430,30 @@ class SystemMonitor: ObservableObject {
 
 @_silgen_name("proc_listpids")
 func proc_listpids(_ type: UInt32, _ typeinfo: UInt32, _ buffer: UnsafeMutableRawPointer?, _ buffersize: Int32) -> Int32
+
+@_silgen_name("proc_name")
+func proc_name(_ pid: Int32, _ buffer: UnsafeMutablePointer<CChar>, _ buffersize: UInt32) -> Int32
+
+@_silgen_name("proc_pidinfo")
+func proc_pidinfo(_ pid: Int32, _ flavor: Int32, _ arg: UInt64, _ buffer: UnsafeMutableRawPointer?, _ buffersize: Int32) -> Int32
+
+struct proc_taskinfo {
+    var pti_virtual_size: UInt64
+    var pti_resident_size: UInt64
+    var pti_total_user: UInt64
+    var pti_total_system: UInt64
+    var pti_threads_user: UInt64
+    var pti_threads_system: UInt64
+    var pti_policy: Int32
+    var pti_faults: Int32
+    var pti_pageins: Int32
+    var pti_cow_faults: Int32
+    var pti_messages_sent: Int32
+    var pti_messages_received: Int32
+    var pti_syscalls_mach: Int32
+    var pti_syscalls_unix: Int32
+    var pti_csw: Int32
+    var pti_threadnum: Int32
+    var pti_numrunning: Int32
+    var pti_priority: Int32
+}

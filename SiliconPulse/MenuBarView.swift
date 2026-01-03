@@ -26,50 +26,53 @@ struct MenuBarView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     // CPU Section with Chart
-                    DashboardSection(title: "CPU", icon: "cpu", color: .blue) {
+                    DashboardSection(title: "CPU & GPU", icon: "cpu", color: .blue) {
                         VStack(spacing: 12) {
                             HStack {
-                                Text("\(Int(systemMonitor.cpuUsage))%")
-                                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                                    .contentTransition(.numericText(value: systemMonitor.cpuUsage))
+                                VStack(alignment: .leading) {
+                                    Text("CPU")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("\(Int(systemMonitor.cpuUsage))%")
+                                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                                }
                                 
                                 Spacer()
                                 
                                 VStack(alignment: .trailing) {
-                                    Text("\(systemMonitor.processCount) Procs")
-                                    Text("\(systemMonitor.threadCount) Threads")
+                                    Text("GPU")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("\(Int(systemMonitor.gpuUsage))%")
+                                        .font(.system(size: 24, weight: .bold, design: .rounded))
                                 }
-                                .font(.caption)
-                                .foregroundColor(.secondary)
                             }
                             
-                            // CPU History Chart
+                            // Combined History Chart
                             if !systemMonitor.cpuHistory.isEmpty {
-                                Chart(Array(systemMonitor.cpuHistory.enumerated()), id: \.offset) { index, value in
-                                    AreaMark(
-                                        x: .value("Time", index),
-                                        y: .value("Usage", value)
-                                    )
-                                    .foregroundStyle(
-                                        LinearGradient(
-                                            colors: [.blue.opacity(0.6), .blue.opacity(0.1)],
-                                            startPoint: .top,
-                                            endPoint: .bottom
+                                Chart {
+                                    ForEach(Array(systemMonitor.cpuHistory.enumerated()), id: \.offset) { index, value in
+                                        LineMark(
+                                            x: .value("Time", index),
+                                            y: .value("Usage", value)
                                         )
-                                    )
-                                    .interpolationMethod(.catmullRom)
+                                        .foregroundStyle(.blue)
+                                        .interpolationMethod(.catmullRom)
+                                    }
                                     
-                                    LineMark(
-                                        x: .value("Time", index),
-                                        y: .value("Usage", value)
-                                    )
-                                    .foregroundStyle(.blue)
-                                    .interpolationMethod(.catmullRom)
+                                    ForEach(Array(systemMonitor.gpuHistory.enumerated()), id: \.offset) { index, value in
+                                        LineMark(
+                                            x: .value("Time", index),
+                                            y: .value("Usage", value)
+                                        )
+                                        .foregroundStyle(.green)
+                                        .interpolationMethod(.catmullRom)
+                                    }
                                 }
                                 .chartYScale(domain: 0...100)
                                 .chartXAxis(.hidden)
                                 .chartYAxis(.hidden)
-                                .frame(height: 50)
+                                .frame(height: 60)
                             }
                         }
                     }
@@ -246,11 +249,55 @@ struct MenuBarView: View {
                     }
 
                     // Quick Actions
+                    DashboardSection(title: "Top Processes", icon: "list.bullet", color: .secondary) {
+                        VStack(spacing: 8) {
+                            ForEach(systemMonitor.topProcesses) { process in
+                                HStack {
+                                    Text(process.name)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    Text(formatBytes(process.memoryUsage))
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            if systemMonitor.topProcesses.isEmpty {
+                                Text("No data available")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+
+                    // Top Processes
+                    DashboardSection(title: "Top Processes", icon: "list.bullet", color: .secondary) {
+                        VStack(spacing: 8) {
+                            ForEach(systemMonitor.topProcesses) { process in
+                                HStack {
+                                    Text(process.name)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    Text(formatBytes(process.memoryUsage))
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            if systemMonitor.topProcesses.isEmpty {
+                                Text("No data available")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+
+                    // Quick Actions
                     QuickActionsSection()
                 }
                 .padding()
             }
-            .frame(height: 550)
+            .frame(height: 600)
             
             Divider()
             
