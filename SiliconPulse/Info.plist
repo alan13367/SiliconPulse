@@ -47,5 +47,12 @@
     <!-- Copyright -->
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2024 SiliconPulse. All rights reserved.</string>
+    
+    <!-- Privileged Fan Helper -->
+    <key>SMPrivilegedExecutables</key>
+    <dict>
+        <key>com.alan13367.SiliconPulse.FanHelper</key>
+        <string>identifier "com.alan13367.SiliconPulse.FanHelper" and anchor apple generic and certificate leaf[subject.OU] = "M77ZNJA6C8"</string>
+    </dict>
 </dict>
 </plist>

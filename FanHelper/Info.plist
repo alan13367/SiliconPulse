@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.alan13367.SiliconPulse.FanHelper</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>SiliconPulse Fan Helper</string>
+    <key>CFBundleDisplayName</key>
+    <string>SiliconPulse Fan Helper</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleExecutable</key>
+    <string>com.alan13367.SiliconPulse.FanHelper</string>
+    <key>SMAuthorizedClients</key>
+    <array>
+        <string>identifier "com.alan13367.SiliconPulse" and anchor apple generic and certificate leaf[subject.OU] = "M77ZNJA6C8"</string>
+    </array>
+</dict>
+</plist>

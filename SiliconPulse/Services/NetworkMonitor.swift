@@ -1,59 +1,28 @@
 import Foundation
-import Combine
-import SwiftUI
+import Observation
 import SystemConfiguration
 
-class NetworkMonitor: ObservableObject {
+@Observable
+final class NetworkMonitor {
     static let shared = NetworkMonitor()
 
-    @Published var networkUploadSpeed: Double = 0
-    @Published var networkDownloadSpeed: Double = 0
-    @Published var networkHistory: [NetworkSpeed] = []
-    @Published var totalDownloadSession: Int64 = 0
-    @Published var totalUploadSession: Int64 = 0
+    var networkUploadSpeed: Double = 0
+    var networkDownloadSpeed: Double = 0
+    var networkHistory: [NetworkSpeed] = []
+    var totalDownloadSession: Int64 = 0
+    var totalUploadSession: Int64 = 0
+    var currentInterface: String = ""
+    var isVPN: Bool = false
 
     private var timer: Timer?
     private var previousNetworkStats: (upload: Int64, download: Int64, timestamp: Date)?
     private var dynamicStore: SCDynamicStore?
-    private var currentInterface: String = ""
-
-    private func getPrimaryInterface() -> String {
-        if let global = SCDynamicStoreCopyValue(nil, "State:/Network/Global/IPv4" as CFString),
-           let name = global["PrimaryInterface"] as? String {
-            return name
-        }
-        return ""
-    }
 
     private init() {
         self.currentInterface = getPrimaryInterface()
+        detectVPN()
         setupNetworkObserver()
         startMonitoring()
-    }
-
-    private func setupNetworkObserver() {
-        var context = SCDynamicStoreContext(version: 0, info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()), retain: nil, release: nil, copyDescription: nil)
-        
-        dynamicStore = SCDynamicStoreCreate(nil, "SiliconPulse" as CFString, { _, _, info in
-            guard let info = info else { return }
-            let monitor = Unmanaged<NetworkMonitor>.fromOpaque(info).takeUnretainedValue()
-            let newInterface = monitor.getPrimaryInterface()
-            if newInterface != monitor.currentInterface {
-                DispatchQueue.main.async {
-                    monitor.currentInterface = newInterface
-                    // Reset previous stats to avoid huge spikes on switch
-                    monitor.previousNetworkStats = nil
-                }
-            }
-        }, &context)
-
-        if let store = dynamicStore {
-            let keys = ["State:/Network/Global/IPv4"] as CFArray
-            SCDynamicStoreSetNotificationKeys(store, keys, nil)
-            if let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0) {
-                CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-            }
-        }
     }
 
     func startMonitoring() {
@@ -69,14 +38,53 @@ class NetworkMonitor: ObservableObject {
         timer = nil
     }
 
+    private func getPrimaryInterface() -> String {
+        if let global = SCDynamicStoreCopyValue(nil, "State:/Network/Global/IPv4" as CFString),
+           let name = global["PrimaryInterface"] as? String {
+            return name
+        }
+        return ""
+    }
+
+    private func detectVPN() {
+        if let prefs = SCDynamicStoreCopyValue(nil, "State:/Network/Global/IPv4" as CFString),
+           let service = prefs["PrimaryService"] as? String {
+            let key = "State:/Network/Service/\(service)/Interface" as CFString
+            if let iface = SCDynamicStoreCopyValue(nil, key),
+               let name = iface["InterfaceName"] as? String {
+                isVPN = name.hasPrefix("utun") || name.hasPrefix("ipsec") || name.hasPrefix("ppp")
+            }
+        }
+    }
+
+    private func setupNetworkObserver() {
+        var context = SCDynamicStoreContext(version: 0, info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()), retain: nil, release: nil, copyDescription: nil)
+        dynamicStore = SCDynamicStoreCreate(nil, "SiliconPulse" as CFString, { _, _, info in
+            guard let info = info else { return }
+            let monitor = Unmanaged<NetworkMonitor>.fromOpaque(info).takeUnretainedValue()
+            let newInterface = monitor.getPrimaryInterface()
+            if newInterface != monitor.currentInterface {
+                monitor.currentInterface = newInterface
+                monitor.detectVPN()
+                monitor.previousNetworkStats = nil
+            }
+        }, &context)
+
+        if let store = dynamicStore {
+            let keys = ["State:/Network/Global/IPv4"] as CFArray
+            SCDynamicStoreSetNotificationKeys(store, keys, nil)
+            if let source = SCDynamicStoreCreateRunLoopSource(nil, store, 0) {
+                CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+            }
+        }
+    }
+
     private func updateNetworkStats() {
         let interfaceID = self.currentInterface
         guard !interfaceID.isEmpty else { return }
 
         var interfaceAddresses: UnsafeMutablePointer<ifaddrs>? = nil
-        guard getifaddrs(&interfaceAddresses) == 0, let firstAddr = interfaceAddresses else {
-            return
-        }
+        guard getifaddrs(&interfaceAddresses) == 0, let firstAddr = interfaceAddresses else { return }
         defer { freeifaddrs(interfaceAddresses) }
 
         var totalUpload: Int64 = 0
@@ -103,51 +111,38 @@ class NetworkMonitor: ObservableObject {
         if let previous = previousNetworkStats {
             let timeDelta = now.timeIntervalSince(previous.timestamp)
             if timeDelta > 0 {
-                let uploadDiff = totalUpload >= previous.upload ? totalUpload - previous.upload : 0
-                let downloadDiff = totalDownload >= previous.download ? totalDownload - previous.download : 0
+                let uploadDiff = diffWithRollover(current: totalUpload, previous: previous.upload)
+                let downloadDiff = diffWithRollover(current: totalDownload, previous: previous.download)
 
                 let uploadSpeed = Double(uploadDiff) / timeDelta
                 let downloadSpeed = Double(downloadDiff) / timeDelta
 
-                DispatchQueue.main.async {
-                    self.networkUploadSpeed = uploadSpeed
-                    self.networkDownloadSpeed = downloadSpeed
-                    self.totalUploadSession += uploadDiff
-                    self.totalDownloadSession += downloadDiff
+                let smoothedUpload = smoothed(networkUploadSpeed, newValue: uploadSpeed)
+                let smoothedDownload = smoothed(networkDownloadSpeed, newValue: downloadSpeed)
 
-                    let speedEntry = NetworkSpeed(
-                        upload: uploadSpeed,
-                        download: downloadSpeed,
-                        timestamp: now
-                    )
-                    self.networkHistory.append(speedEntry)
-                    let limit = SettingsManager.shared.networkHistoryPoints
-                    if self.networkHistory.count > limit {
-                        self.networkHistory.removeFirst()
-                    }
-                }
+                networkUploadSpeed = smoothedUpload
+                networkDownloadSpeed = smoothedDownload
+                totalUploadSession += uploadDiff
+                totalDownloadSession += downloadDiff
+
+                let entry = NetworkSpeed(upload: smoothedUpload, download: smoothedDownload, timestamp: now)
+                networkHistory.append(entry)
+                let limit = SettingsManager.shared.networkHistoryPoints
+                if networkHistory.count > limit { networkHistory.removeFirst() }
             }
         }
-
         previousNetworkStats = (totalUpload, totalDownload, now)
     }
 
-    deinit {
-        stopMonitoring()
-    }
-}
-
-struct NetworkSpeed: Identifiable {
-    let id = UUID()
-    let upload: Double
-    let download: Double
-    let timestamp: Date
-
-    var formattedUpload: String {
-        ByteCountFormatter.string(fromByteCount: Int64(upload), countStyle: .binary)
+    private func diffWithRollover(current: Int64, previous: Int64) -> Int64 {
+        if current >= previous { return current - previous }
+        // 32-bit rollover at ~4GB
+        return current + (Int64(UInt32.max) - previous)
     }
 
-    var formattedDownload: String {
-        ByteCountFormatter.string(fromByteCount: Int64(download), countStyle: .binary)
+    private func smoothed(_ current: Double, newValue: Double, factor: Double = 0.3) -> Double {
+        current + (newValue - current) * factor
     }
+
+    deinit { stopMonitoring() }
 }

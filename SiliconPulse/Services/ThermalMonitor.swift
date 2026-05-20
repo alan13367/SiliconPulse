@@ -1,27 +1,27 @@
 import Foundation
-import Combine
+import Observation
 import SwiftUI
 
-class ThermalMonitor: ObservableObject {
+@Observable
+final class ThermalMonitor {
     static let shared = ThermalMonitor()
-    
-    @Published var thermalPressureLevel: ThermalPressureLevel = .nominal
-    @Published var thermalPressureRawValue: Int = 0
-    @Published var thermalNotificationAvailable: Bool = false
-    
+
+    var thermalPressureLevel: ThermalPressureLevel = .nominal
+    var thermalPressureRawValue: Int = 0
+    var thermalNotificationAvailable: Bool = false
+
     private var notifyPort: Int32 = 0
     private var updateTimer: Timer?
-    private var cancellables = Set<AnyCancellable>()
-    
-    enum ThermalPressureLevel: String, CaseIterable {
+
+    enum ThermalPressureLevel: String, CaseIterable, Sendable {
         case nominal = "Nominal"
         case moderate = "Moderate"
         case heavy = "Heavy"
         case trapping = "Trapping"
         case sleeping = "Sleeping"
         case unknown = "Unknown"
-        
-        var color: Color {
+
+        var color: SwiftUI.Color {
             switch self {
             case .nominal: return .green
             case .moderate: return .yellow
@@ -31,77 +31,65 @@ class ThermalMonitor: ObservableObject {
             case .unknown: return .gray
             }
         }
-        
+
         var description: String {
             switch self {
-            case .nominal: return "System is cool and operating normally"
-            case .moderate: return "System is warm, minor performance adjustments"
-            case .heavy: return "System is hot, performance may be throttled"
+            case .nominal: return "Cool and operating normally"
+            case .moderate: return "Warm, minor performance adjustments"
+            case .heavy: return "Hot, performance may be throttled"
             case .trapping: return "Severe thermal throttling applied"
-            case .sleeping: return "Critical - near thermal shutdown"
+            case .sleeping: return "Critical — near thermal shutdown"
             case .unknown: return "Thermal state unknown"
             }
         }
-        
+
         var icon: String {
             switch self {
             case .nominal: return "thermometer.snowflake"
             case .moderate: return "thermometer"
             case .heavy: return "thermometer.sun"
             case .trapping: return "thermometer.high"
-            case .sleeping: return "exclamationmark.triangle"
+            case .sleeping: return "exclamationmark.triangle.fill"
             case .unknown: return "questionmark.circle"
             }
         }
     }
-    
+
     private init() {
         setupThermalMonitoring()
     }
-    
+
     private func setupThermalMonitoring() {
-        thermalNotificationAvailable = true
         setupThermalNotification()
-        
         updateTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             self?.updateThermalState()
         }
     }
-    
+
     private func setupThermalNotification() {
         let notificationName = "com.apple.system.thermalpressurelevel"
-        
         let result = notificationName.withCString { namePtr in
             notify_register_check(namePtr, &notifyPort)
         }
-        
         if result == NOTIFY_STATUS_OK {
             thermalNotificationAvailable = true
             updateThermalState()
         } else {
             thermalNotificationAvailable = false
-            DispatchQueue.main.async {
-                self.thermalPressureLevel = .unknown
-            }
+            thermalPressureLevel = .unknown
         }
     }
-    
+
     private func updateThermalState() {
         guard thermalNotificationAvailable else {
-            DispatchQueue.main.async {
-                self.thermalPressureLevel = .unknown
-            }
+            thermalPressureLevel = .unknown
             return
         }
-        
         var state: UInt64 = 0
         let result = notify_get_state(notifyPort, &state)
-        
         if result == NOTIFY_STATUS_OK {
-            DispatchQueue.main.async {
-                self.thermalPressureRawValue = Int(state)
-                self.thermalPressureLevel = self.levelForState(state)
-            }
+            thermalPressureRawValue = Int(state)
+            thermalPressureLevel = levelForState(state)
         }
     }
 
@@ -115,37 +103,18 @@ class ThermalMonitor: ObservableObject {
         default: return .unknown
         }
     }
-    
-    func getThermalPressurePercentage() -> Double {
-        switch thermalPressureLevel {
-        case .nominal: return 0.0
-        case .moderate: return 33.0
-        case .heavy: return 66.0
-        case .trapping: return 85.0
-        case .sleeping: return 100.0
-        case .unknown: return 0.0
-        }
-    }
-    
+
     deinit {
-        if notifyPort != 0 {
-            notify_cancel(notifyPort)
-        }
+        if notifyPort != 0 { notify_cancel(notifyPort) }
         updateTimer?.invalidate()
     }
 }
 
 @_silgen_name("notify_register_check")
-private func notify_register_check(
-    _ name: UnsafePointer<CChar>,
-    _ token: UnsafeMutablePointer<Int32>
-) -> UInt32
+private func notify_register_check(_ name: UnsafePointer<CChar>, _ token: UnsafeMutablePointer<Int32>) -> UInt32
 
 @_silgen_name("notify_get_state")
-private func notify_get_state(
-    _ token: Int32,
-    _ state: UnsafeMutablePointer<UInt64>
-) -> UInt32
+private func notify_get_state(_ token: Int32, _ state: UnsafeMutablePointer<UInt64>) -> UInt32
 
 @_silgen_name("notify_cancel")
 private func notify_cancel(_ token: Int32) -> UInt32

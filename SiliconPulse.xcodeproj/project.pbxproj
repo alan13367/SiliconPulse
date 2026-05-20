@@ -54,6 +54,7 @@
 			buildPhases = (
 				E7525C6D2F00574E00BEE86E /* Sources */,
 				E7525C6E2F00574E00BEE86E /* Frameworks */,
+				F10000010001000100010001 /* Build Fan Helper */,
 				E7525C6F2F00574E00BEE86E /* Resources */,
 			);
 			buildRules = (
@@ -113,6 +114,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F10000010001000100010001 /* Build Fan Helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Build Fan Helper";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nHELPER_SRC=\"${SRCROOT}/FanHelper/main.swift\"\nHELPER_PLIST=\"${SRCROOT}/FanHelper/Info.plist\"\nLAUNCHD_PLIST=\"${SRCROOT}/FanHelper/launchd.plist\"\nHELPER_DIR=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchServices\"\nHELPER_OUT=\"${HELPER_DIR}/com.alan13367.SiliconPulse.FanHelper\"\n\nmkdir -p \"${HELPER_DIR}\"\nswiftc -framework Foundation -framework IOKit \\\n    -o \"${HELPER_OUT}\" \\\n    -Xlinker -no_adhoc_codesign \\\n    -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker \"${HELPER_PLIST}\" \\\n    -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __launchd_plist -Xlinker \"${LAUNCHD_PLIST}\" \\\n    \"${HELPER_SRC}\"\n\nif [ -z \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n    echo \"error: No code signing identity. Set a Development Team in Signing & Capabilities.\"\n    exit 1\nfi\n\ncodesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --identifier com.alan13367.SiliconPulse.FanHelper --timestamp\\=none \"${HELPER_OUT}\"\ncodesign -vvv \"${HELPER_OUT}\" 2>&1 || true\n\necho \"Fan helper signed at: ${HELPER_OUT}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E7525C6D2F00574E00BEE86E /* Sources */ = {
@@ -248,14 +266,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M77ZNJA6C8;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "SiliconPulse/Info.plist";
+				INFOPLIST_FILE = SiliconPulse/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -279,14 +300,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M77ZNJA6C8;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "SiliconPulse/Info.plist";
+				INFOPLIST_FILE = SiliconPulse/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
