@@ -43,13 +43,14 @@ struct ProcessWindowView: View {
                let process = processMonitor.topProcesses.first(where: { $0.id == pid }) {
                 ProcessDetailView(process: process)
                     .toolbar {
-                        ToolbarItem {
+                        ToolbarItem(placement: .primaryAction) {
                             Button(role: .destructive) {
                                 processToKill = process
                                 showKillConfirmation = true
                             } label: {
-                                Label("Kill", systemImage: "xmark.shield.fill")
+                                Label("Kill Process", systemImage: "xmark.shield.fill")
                             }
+                            .buttonStyle(.borderedProminent)
                             .disabled(process.id == 0)
                         }
                     }
@@ -67,13 +68,15 @@ struct ProcessWindowView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 200)
+                .onChange(of: settings.processSortBy) { settings.save() }
             }
             ToolbarItem {
                 Button {
                     ProcessMonitor.shared.updateProcesses()
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
+                .help("Refresh process list")
             }
         }
         .confirmationDialog("Kill process?", isPresented: $showKillConfirmation, titleVisibility: .visible) {
@@ -91,7 +94,6 @@ struct ProcessWindowView: View {
     private func killProcess(pid: Int32) {
         let result = kill(pid, SIGTERM)
         if result != 0 {
-            // Fallback to SIGKILL
             kill(pid, SIGKILL)
         }
         selectedProcess = nil
@@ -103,28 +105,22 @@ struct ProcessRow: View {
 
     var body: some View {
         HStack {
-            Image(systemName: process.isSystemProcess ? "gearshape.fill" : "app")
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(process.name)
-                    .font(.system(size: 13))
-                    .lineLimit(1)
-                Text("PID: \(process.id)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            Label(process.name, systemImage: process.isSystemProcess ? "gearshape.fill" : "app")
+                .labelStyle(.titleOnly)
+                .lineLimit(1)
             Spacer()
-            VStack(alignment: .trailing, spacing: 1) {
-                Text(String(format: "%.1f%%", process.cpuUsage))
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(Formatters.percentage(process.cpuUsage))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(DesignTokens.usageTint(process.cpuUsage))
                 Text(Formatters.bytes(process.memoryUsage))
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(process.name), CPU \(Formatters.percentage(process.cpuUsage)), memory \(Formatters.bytes(process.memoryUsage))")
     }
 }
 
@@ -132,51 +128,47 @@ struct ProcessDetailView: View {
     let process: ProcessInfo
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "app.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: DesignTokens.sectionSpacing) {
+            Label {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(process.name)
-                        .font(.title2)
-                    Text("PID: \(process.id)")
+                        .font(.title2.weight(.semibold))
+                    Text("Process ID \(process.id)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
+            } icon: {
+                Image(systemName: "app.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.secondary)
+                    .symbolRenderingMode(.hierarchical)
             }
+            .labelStyle(.titleAndIcon)
 
             Divider()
 
-            Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 12) {
-                GridRow {
-                    DetailItem(label: "CPU Usage", value: String(format: "%.1f%%", process.cpuUsage))
-                    DetailItem(label: "Memory", value: Formatters.bytes(process.memoryUsage))
+            VStack(alignment: .leading, spacing: DesignTokens.rowSpacing) {
+                LabeledContent("CPU Usage") {
+                    Text(Formatters.percentage(process.cpuUsage))
+                        .monospacedDigit()
+                        .foregroundStyle(DesignTokens.usageTint(process.cpuUsage))
                 }
-                GridRow {
-                    DetailItem(label: "Kind", value: process.isSystemProcess ? "System" : "User")
-                    DetailItem(label: "PID", value: "\(process.id)")
+                UsageGauge(value: process.cpuUsage, showLabel: false)
+
+                LabeledContent("Memory") {
+                    Text(Formatters.bytes(process.memoryUsage))
+                        .monospacedDigit()
+                }
+                LabeledContent("Kind") {
+                    Text(process.isSystemProcess ? "System" : "User")
                 }
             }
+            .font(.body)
 
             Spacer()
         }
-        .padding()
+        .padding(DesignTokens.panelPadding)
         .frame(minWidth: 300)
-    }
-}
-
-struct DetailItem: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.body.monospacedDigit())
-        }
     }
 }

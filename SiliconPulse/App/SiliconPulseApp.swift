@@ -31,12 +31,21 @@ struct SiliconPulseApp: App {
                 .environment(thermalMonitor)
         }
         .menuBarExtraStyle(.window)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    NotificationCenter.default.post(name: .siliconPulseOpenSettings, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
 
         Window("Top Processes", id: "processes") {
             ProcessWindowView()
                 .environment(processMonitor)
                 .environment(settingsManager)
         }
+        .defaultSize(width: 900, height: 560)
 
         Settings {
             SettingsView()
@@ -49,49 +58,28 @@ struct SiliconPulseApp: App {
 struct MenuBarIconView: View {
     @Environment(SystemMonitor.self) var systemMonitor
     @Environment(ThermalMonitor.self) var thermalMonitor
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        HStack(spacing: 6) {
-            HStack(spacing: 2) {
-                Image(systemName: "cpu")
-                    .imageScale(.small)
-                Text("\(Int(systemMonitor.cpuUsage))%")
-                    .font(.system(.body, design: .monospaced))
-                    .fontWeight(.semibold)
-            }
-            .foregroundStyle(cpuColor)
-
-            HStack(spacing: 2) {
-                Image(systemName: "memorychip")
-                    .imageScale(.small)
-                Text("\(Int(systemMonitor.memoryUsage))%")
-                    .font(.system(.body, design: .monospaced))
-                    .fontWeight(.semibold)
-            }
-            .foregroundStyle(memoryColor)
+        HStack(spacing: 5) {
+            Label("\(Int(systemMonitor.cpuUsage))%", systemImage: "cpu")
+            Label("\(Int(systemMonitor.memoryUsage))%", systemImage: "memorychip")
 
             if thermalMonitor.thermalPressureLevel != .nominal {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(thermalMonitor.thermalPressureLevel.color)
                     .imageScale(.small)
+                    .accessibilityLabel("Thermal pressure: \(thermalMonitor.thermalPressureLevel.rawValue)")
             }
         }
+        .labelStyle(.titleAndIcon)
+        .font(.caption.weight(.medium))
+        .monospacedDigit()
+        .foregroundStyle(.primary)
         .padding(.horizontal, 2)
-    }
-
-    private var cpuColor: Color {
-        switch systemMonitor.cpuUsage {
-        case 0..<50: return .primary
-        case 50..<80: return .orange
-        default: return .red
-        }
-    }
-
-    private var memoryColor: Color {
-        switch systemMonitor.memoryUsage {
-        case 0..<60: return .primary
-        case 60..<85: return .orange
-        default: return .red
+        .onReceive(NotificationCenter.default.publisher(for: .siliconPulseOpenSettings)) { _ in
+            openSettings()
+            AppWindows.presentSettings()
         }
     }
 }

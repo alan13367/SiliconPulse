@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @State var settings = SettingsManager.shared
-
     var body: some View {
         TabView {
             GeneralSettingsView()
@@ -16,8 +14,7 @@ struct SettingsView: View {
             AboutView()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .padding(20)
-        .frame(width: 520, height: 380)
+        .frame(minWidth: 500, minHeight: 380)
     }
 }
 
@@ -26,7 +23,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("Update Preferences").font(.caption)) {
+            Section {
                 Picker("Update Interval", selection: $settings.updateInterval) {
                     Text("1 second").tag(1.0)
                     Text("2 seconds").tag(2.0)
@@ -37,11 +34,15 @@ struct GeneralSettingsView: View {
 
                 Toggle("Launch at Login", isOn: $settings.launchAtLogin)
                     .onChange(of: settings.launchAtLogin) { settings.save() }
+            } header: {
+                Text("Update Preferences")
             }
 
-            Section(header: Text("Alerts").font(.caption)) {
+            Section {
                 Toggle("Enable Notifications", isOn: $settings.showNotifications)
                     .onChange(of: settings.showNotifications) { settings.save() }
+            } header: {
+                Text("Alerts")
             }
         }
         .formStyle(.grouped)
@@ -53,7 +54,7 @@ struct DisplaySettingsView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("Dashboard").font(.caption)) {
+            Section {
                 Toggle("Show CPU Core Details", isOn: $settings.showCoreDetails)
                     .onChange(of: settings.showCoreDetails) { settings.save() }
                 Toggle("Show Memory Breakdown", isOn: $settings.showMemoryDetails)
@@ -68,15 +69,23 @@ struct DisplaySettingsView: View {
                     .onChange(of: settings.showDiskInfo) { settings.save() }
                 Toggle("Show Fan Control", isOn: $settings.showFanControl)
                     .onChange(of: settings.showFanControl) { settings.save() }
+            } header: {
+                Text("Dashboard")
+            } footer: {
+                #if arch(arm64)
+                Text("Fan control on Apple Silicon requires installing the privileged helper from the Fans section.")
+                #endif
             }
 
-            Section(header: Text("Units").font(.caption)) {
+            Section {
                 Picker("Temperature", selection: $settings.useFahrenheit) {
                     Text("Celsius (°C)").tag(false)
                     Text("Fahrenheit (°F)").tag(true)
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: settings.useFahrenheit) { settings.save() }
+            } header: {
+                Text("Units")
             }
         }
         .formStyle(.grouped)
@@ -88,12 +97,14 @@ struct NetworkSettingsView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("Network").font(.caption)) {
+            Section {
                 Toggle("Show in Bits per second", isOn: $settings.useBitsPerSecond)
                     .onChange(of: settings.useBitsPerSecond) { settings.save() }
 
                 Stepper("History Points: \(settings.networkHistoryPoints)", value: $settings.networkHistoryPoints, in: 10...120, step: 10)
                     .onChange(of: settings.networkHistoryPoints) { settings.save() }
+            } header: {
+                Text("Network")
             }
         }
         .formStyle(.grouped)
@@ -105,7 +116,7 @@ struct ProcessSettingsView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("Process Window").font(.caption)) {
+            Section {
                 Picker("Default Sort", selection: $settings.processSortBy) {
                     ForEach(SettingsManager.ProcessSort.allCases, id: \.self) { sort in
                         Text(sort.rawValue).tag(sort)
@@ -113,6 +124,8 @@ struct ProcessSettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: settings.processSortBy) { settings.save() }
+            } header: {
+                Text("Process Window")
             }
 
             Section {
@@ -121,9 +134,8 @@ struct ProcessSettingsView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+            } footer: {
                 Text("This will restore all preferences to their original values.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -134,13 +146,14 @@ struct AboutView: View {
     @Environment(SystemMonitor.self) var systemMonitor
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "cpu.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(Color.accentColor)
+        VStack(spacing: DesignTokens.sectionSpacing) {
+            Image(systemName: "cpu")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+                .symbolRenderingMode(.hierarchical)
 
             Text("SiliconPulse")
-                .font(.title2.bold())
+                .font(.title2.weight(.semibold))
 
             Text("Version 1.1.0")
                 .font(.caption)
@@ -149,32 +162,25 @@ struct AboutView: View {
             Divider()
 
             Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
-                GridRow {
-                    Text("Model:").foregroundStyle(.secondary)
-                    Text(systemMonitor.systemInfo.modelName)
-                }
-                GridRow {
-                    Text("Chip:").foregroundStyle(.secondary)
-                    Text(systemMonitor.systemInfo.chipName)
-                }
-                GridRow {
-                    Text("macOS:").foregroundStyle(.secondary)
-                    Text(systemMonitor.systemInfo.osVersion)
-                }
-                GridRow {
-                    Text("Cores:").foregroundStyle(.secondary)
-                    Text("\(systemMonitor.systemInfo.coreCount) (\(systemMonitor.systemInfo.efficiencyCoreCount)E + \(systemMonitor.systemInfo.performanceCoreCount)P)")
-                }
-                GridRow {
-                    Text("Uptime:").foregroundStyle(.secondary)
-                    Text(Formatters.uptime(systemMonitor.uptime))
-                }
+                aboutRow("Model", systemMonitor.systemInfo.modelName)
+                aboutRow("Chip", systemMonitor.systemInfo.chipName)
+                aboutRow("macOS", systemMonitor.systemInfo.osVersion)
+                aboutRow("Cores", "\(systemMonitor.systemInfo.coreCount) (\(systemMonitor.systemInfo.efficiencyCoreCount)E + \(systemMonitor.systemInfo.performanceCoreCount)P)")
+                aboutRow("Uptime", Formatters.uptime(systemMonitor.uptime))
             }
             .font(.callout)
 
             Spacer()
         }
-        .padding()
+        .padding(DesignTokens.panelPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func aboutRow(_ label: String, _ value: String) -> some View {
+        GridRow {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(value)
+        }
     }
 }

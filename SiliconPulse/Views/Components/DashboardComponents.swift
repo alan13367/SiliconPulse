@@ -1,44 +1,90 @@
 import SwiftUI
 import Charts
 
-struct DashboardCard<Content: View>: View {
+struct SettingsSection<Content: View>: View {
     let title: String
     let icon: String
-    let color: Color
     @ViewBuilder let content: Content
 
-    init(title: String, icon: String, color: Color, @ViewBuilder content: () -> Content) {
+    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
         self.title = title
         self.icon = icon
-        self.color = color
         self.content = content()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .foregroundStyle(color)
-                    .font(.caption)
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: DesignTokens.rowSpacing) {
+            Label(title, systemImage: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
             content
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
+        .padding(DesignTokens.panelPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .nativeSectionBackground()
+    }
+}
+
+struct MetricRow: View {
+    let label: String?
+    let value: String
+
+    init(_ label: String? = nil, value: String) {
+        self.label = label
+        self.value = value
+    }
+
+    var body: some View {
+        if let label {
+            LabeledContent(label) {
+                Text(value)
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+            }
+        } else {
+            Text(value)
+                .font(.title3.weight(.semibold))
+                .monospacedDigit()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+struct UsageGauge: View {
+    let value: Double
+    let showLabel: Bool
+
+    init(value: Double, showLabel: Bool = true) {
+        self.value = value
+        self.showLabel = showLabel
+    }
+
+    var body: some View {
+        Gauge(value: value, in: 0...100) {
+            EmptyView()
+        } currentValueLabel: {
+            if showLabel {
+                Text(Formatters.percentage(value))
+                    .monospacedDigit()
+            }
+        }
+        .gaugeStyle(.linearCapacity)
+        .tint(DesignTokens.usageTint(value))
     }
 }
 
 struct SparklineChart: View {
     let data: [Double]
-    let color: Color
     var yDomain: ClosedRange<Double>? = nil
+    var accentTint: Bool = false
+
+    private var strokeColor: Color {
+        accentTint ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.45)
+    }
+
+    private var fillColor: Color {
+        accentTint ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08)
+    }
 
     var body: some View {
         if data.count > 1 {
@@ -47,16 +93,14 @@ struct SparklineChart: View {
                     x: .value("Time", index),
                     y: .value("Value", value)
                 )
-                .foregroundStyle(
-                    LinearGradient(colors: [color.opacity(0.2), color.opacity(0.02)], startPoint: .top, endPoint: .bottom)
-                )
+                .foregroundStyle(fillColor)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
                     x: .value("Time", index),
                     y: .value("Value", value)
                 )
-                .foregroundStyle(color)
+                .foregroundStyle(strokeColor)
                 .interpolationMethod(.catmullRom)
             }
             .applyIf(yDomain != nil) { chart in
@@ -64,20 +108,9 @@ struct SparklineChart: View {
             }
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
-            .frame(maxWidth: .infinity, minHeight: 36, idealHeight: 36)
+            .frame(maxWidth: .infinity, minHeight: DesignTokens.sparklineHeight, idealHeight: DesignTokens.sparklineHeight)
             .clipped()
         }
-    }
-}
-
-struct MetricValue: View {
-    let value: Double
-    let unit: String
-
-    var body: some View {
-        Text("\(Int(value))\(unit)")
-            .font(.system(size: 24, weight: .bold, design: .rounded))
-            .monospacedDigit()
     }
 }
 
@@ -85,7 +118,7 @@ struct TemperatureBadge: View {
     let temperature: Double
     let useFahrenheit: Bool
 
-    private var color: Color {
+    private var statusColor: Color {
         switch temperature {
         case ..<40: return .green
         case 40..<55: return .yellow
@@ -96,17 +129,17 @@ struct TemperatureBadge: View {
     }
 
     var body: some View {
-        HStack(spacing: 2) {
-            Image(systemName: "thermometer")
-                .font(.caption2)
+        Label {
             Text(Formatters.temperature(temperature, useFahrenheit: useFahrenheit))
-                .font(.caption.monospacedDigit())
+                .monospacedDigit()
+        } icon: {
+            Image(systemName: "thermometer.medium")
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(color.opacity(0.15))
-        .foregroundStyle(color)
-        .clipShape(Capsule())
+        .font(.caption)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(.quaternary, in: Capsule())
+        .foregroundStyle(statusColor)
     }
 }
 

@@ -1,60 +1,110 @@
 # <img src="SiliconPulse/Assets.xcassets/AppIcon.appiconset/icon_32x32.png" width="32" height="32" align="center"> SiliconPulse
 
-SiliconPulse is a high-performance, lightweight system monitor designed specifically for Apple Silicon macOS. It lives in your menu bar and provides real-time insights into your Mac's CPU, Memory, Network, and Thermal states using native Mach APIs and SystemConfiguration frameworks.
+SiliconPulse is a native macOS menu bar utility for real-time system monitoring. It tracks CPU, GPU, memory, network, thermal pressure, battery, disk usage, and fan speeds — optimized for Apple Silicon, with a dedicated Top Processes window for inspection and process management.
 
-![SiliconPulse Header](https://raw.githubusercontent.com/alan13367/SiliconPulse/main/SiliconPulse/Assets.xcassets/AppIcon.appiconset/icon_256x256.png)
+![SiliconPulse](SiliconPulse/Assets.xcassets/AppIcon.appiconset/icon_256x256.png)
 
 ## Features
 
-- **CPU & GPU Monitoring:** Real-time usage tracking for both CPU (per-core) and GPU utilization, with combined live history charts.
-- **Top Processes:** Live list of the top 5 resource-heavy processes by memory usage.
-- **Memory Management:** Detailed breakdown of App Memory, Wired, and Compressed usage, matching macOS Activity Monitor's calculation logic.
-- **Network Stats:** High-precision bandwidth tracking with dynamic interface switching (Wi-Fi/Ethernet) and session-based data totals.
-- **Thermal Awareness:** Monitor system thermal pressure levels (Nominal to Critical) to understand when your Mac is throttling.
-- **Highly Customizable:**
-    - Adjustable update intervals (1s to 5s).
-    - Toggleable display sections.
-    - Customizable usage colors.
-    - Bits per second (bps) or Bytes per second (B/s) network units.
-- **Native Experience:** Built with SwiftUI and Swift Charts for a modern, fluid macOS aesthetic.
+### Menu bar dashboard
+- **CPU** — usage gauge, temperature badge, per-core bars (optional), history sparkline
+- **GPU** — utilization via IOAccelerator / IOReport (hidden when unavailable)
+- **Memory** — used/total, pressure gauge, optional breakdown (App, Wired, Compressed, Free)
+- **Network** — live download/upload speeds, session totals, history chart
+- **Storage** — per-volume usage and free space
+- **Power** — charge level, time remaining, cycles, health (when a battery is present)
+- **Fans** — RPM readout and manual control (Automatic / Manual / Maximum / Off)
+- **Thermal** — system thermal pressure level and description
+
+The menu bar label shows live **CPU %** and **memory %**, with a warning icon when thermal pressure is elevated.
+
+### Top Processes window
+- Sort by CPU, memory, or name
+- Search/filter by process name
+- Process detail view with usage gauges
+- Terminate processes (SIGTERM, then SIGKILL)
+
+### Settings
+Tabbed preferences (General, Display, Network, Processes, About):
+- Update interval (1s, 2s, 5s)
+- Toggle dashboard sections
+- °C / °F, B/s vs bps, network history length
+- Default process sort order
+- Reset all preferences
+
+### Fan control (Apple Silicon)
+Reading fan speeds uses SMC via IOKit. **Writing** fan speeds on Apple Silicon requires installing a privileged helper (`FanHelper`) via `SMJobBless` the first time you change fan mode — macOS will prompt for your password. Fan control availability varies by Mac model; some Apple Silicon machines expose limited or no SMC fan keys.
+
+## Requirements
+
+- **macOS 14.0** or later
+- Apple Silicon Mac recommended (Intel builds are supported; some GPU/fan paths differ)
 
 ## Installation
 
-1. Download the latest `SiliconPulse.dmg` from the [Releases](https://github.com/alan13367/SiliconPulse/releases) page.
-2. Open the DMG and drag **SiliconPulse** to your **Applications** folder.
-3. Launch the app. (Since it is self-signed, you may need to Right-Click > Open for the first run).
+1. Download the latest `SiliconPulse.dmg` from [Releases](https://github.com/alan13367/SiliconPulse/releases).
+2. Open the DMG and drag **SiliconPulse** to **Applications**.
+3. Launch the app. If Gatekeeper blocks an unsigned build, right-click the app and choose **Open**.
 
 ## Usage
 
-Once launched, SiliconPulse lives in your menu bar. Click the icon to open the main dashboard. 
+SiliconPulse runs as a menu bar app (no Dock icon). Click the menu bar item to open the dashboard.
 
-- **Gear Icon:** Access the Preferences window to customize your experience.
-- **Refresh:** Manually trigger a refresh of all system stats.
-- **Quit:** Safely close the application.
+**Footer controls**
+| Control | Action |
+|---------|--------|
+| **Every Xs** | Change refresh rate (1 / 2 / 5 seconds) |
+| **List** | Open Top Processes window |
+| **Gear** | Open Settings (⌘,) |
+| **Power** | Quit SiliconPulse |
 
 ## Development
 
 ### Requirements
-- macOS 13.0+
-- Xcode 14.0+ (for source modifications)
-- Swift 5.7+
+- macOS 14.0+
+- Xcode 15.0+ with the macOS SDK
+- Apple Development signing team configured (required for FanHelper `SMJobBless`)
 
-### Manual Build
-If you wish to build from source manually without Xcode:
+### Build
+
 ```bash
-swiftc -sdk $(xcrun --show-sdk-path --sdk macosx) SiliconPulse/*.swift \
--o SiliconPulseApp \
--framework SwiftUI -framework Charts -framework SystemConfiguration \
--framework AppKit -framework IOKit -framework ServiceManagement
+xcodebuild -project SiliconPulse.xcodeproj -scheme SiliconPulse -configuration Debug build
+```
+
+### Run the built app
+
+```bash
+APP_PATH="$(find ~/Library/Developer/Xcode/DerivedData -name "SiliconPulse.app" -type d | grep -v "Index.noindex" | head -n 1)"
+open -n "$APP_PATH"
+```
+
+### Build and launch (one command)
+
+```bash
+xcodebuild -project SiliconPulse.xcodeproj -scheme SiliconPulse -configuration Debug build && \
+  APP_PATH="$(find ~/Library/Developer/Xcode/DerivedData -name "SiliconPulse.app" -type d | grep -v "Index.noindex" | head -n 1)" && \
+  open -n "$APP_PATH"
+```
+
+### Project layout
+
+See [AGENTS.md](AGENTS.md) for architecture, private API notes, and agent-oriented build/debug instructions.
+
+```
+SiliconPulse/
+├── SiliconPulse/          # Main app (SwiftUI views, services, models)
+├── FanHelper/             # Privileged helper for SMC fan writes (arm64)
+└── SiliconPulse.xcodeproj
 ```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request or open an issue for feature requests and bug reports.
+Contributions are welcome. Open an issue for bugs or feature requests, or submit a pull request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE).
 
 ---
-*Created by Alan Beltran Pozo. Optimized for Apple Silicon.*
+
+*Created by Alan Beltran Pozo.*

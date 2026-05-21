@@ -149,7 +149,7 @@ These APIs may change between macOS versions. The app gracefully degrades when A
 
 ## Known Issues / Limitations
 
-1. **Asset catalog warnings**: AppIcon sizes are 2x expected resolution (e.g., 32x32 provided where 16x16 expected). Xcode warns but builds successfully. Regenerate proper icon sizes to silence warnings.
+1. **App icon**: Master art lives in `AppIcon.appiconset/` (generated from 1024×1024 source). Re-export all slots if replacing the icon.
 2. **IOReport GPU**: The `IOReport` private framework cannot be used with Swift closures capturing context. The GPU monitor falls back to `IOAccelerator` which may report 0 on some Apple Silicon chips.
 3. **SMC Fan Control**: Apple Silicon Macs (M1+) do not expose traditional SMC fan keys. Fan control may only work on Intel Macs. The UI gracefully shows "No fans detected" when SMC keys are unavailable.
 4. **Info.plist in Copy Bundle Resources**: Xcode warns that `Info.plist` is in the Copy Bundle Resources build phase. This is an Xcode 16 folder-synchronization quirk and does not affect functionality.
