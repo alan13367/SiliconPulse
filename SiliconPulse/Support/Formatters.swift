@@ -14,6 +14,10 @@ enum Formatters {
         bytes > 0 ? self.bytes(UInt64(bytes), style: style) : "0 B"
     }
 
+    static func storage(_ bytes: UInt64) -> String {
+        self.bytes(bytes, style: .file)
+    }
+
     static func networkSpeed(_ bytesPerSecond: Double, useBits: Bool = false) -> String {
         if useBits {
             let bps = Int64(bytesPerSecond * 8)

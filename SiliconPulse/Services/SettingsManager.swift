@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import Combine
+import ServiceManagement
 
 @Observable
 final class SettingsManager {
@@ -23,6 +23,8 @@ final class SettingsManager {
     var networkHistoryPoints: Int = 60
     var useFahrenheit: Bool = false
     var processSortBy: ProcessSort = .cpu
+    var launchAtLoginError: String?
+    var hasCompletedOnboarding: Bool = false
 
     enum ProcessSort: String, CaseIterable, Sendable {
         case cpu = "CPU"
@@ -30,7 +32,6 @@ final class SettingsManager {
         case name = "Name"
     }
 
-    private var cancellables = Set<AnyCancellable>()
     private let defaults = UserDefaults.standard
 
     private init() {
@@ -48,7 +49,7 @@ final class SettingsManager {
         showBatteryInfo = defaults.object(forKey: "showBatteryInfo") == nil ? true : defaults.bool(forKey: "showBatteryInfo")
         showDiskInfo = defaults.object(forKey: "showDiskInfo") == nil ? true : defaults.bool(forKey: "showDiskInfo")
         showFanControl = defaults.object(forKey: "showFanControl") == nil ? true : defaults.bool(forKey: "showFanControl")
-        launchAtLogin = defaults.bool(forKey: "launchAtLogin")
+        launchAtLogin = SMAppService.mainApp.status == .enabled
         showNotifications = defaults.bool(forKey: "showNotifications")
         cpuAlertThreshold = defaults.double(forKey: "cpuAlertThreshold")
         if cpuAlertThreshold == 0 { cpuAlertThreshold = 90.0 }
@@ -59,6 +60,7 @@ final class SettingsManager {
         networkHistoryPoints = defaults.integer(forKey: "networkHistoryPoints")
         if networkHistoryPoints == 0 { networkHistoryPoints = 60 }
         useFahrenheit = defaults.bool(forKey: "useFahrenheit")
+        hasCompletedOnboarding = defaults.bool(forKey: "hasCompletedOnboarding")
 
         if let sortRaw = defaults.string(forKey: "processSortBy"), let sort = ProcessSort(rawValue: sortRaw) {
             processSortBy = sort
@@ -83,6 +85,24 @@ final class SettingsManager {
         defaults.set(networkHistoryPoints, forKey: "networkHistoryPoints")
         defaults.set(useFahrenheit, forKey: "useFahrenheit")
         defaults.set(processSortBy.rawValue, forKey: "processSortBy")
+        defaults.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
+    }
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchAtLogin = enabled
+            launchAtLoginError = nil
+            save()
+        } catch {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+            launchAtLoginError = error.localizedDescription
+            save()
+        }
     }
 
     func resetToDefaults() {
@@ -94,7 +114,15 @@ final class SettingsManager {
         showBatteryInfo = true
         showDiskInfo = true
         showFanControl = true
-        launchAtLogin = false
+        if SMAppService.mainApp.status == .enabled {
+            do {
+                try SMAppService.mainApp.unregister()
+                launchAtLoginError = nil
+            } catch {
+                launchAtLoginError = error.localizedDescription
+            }
+        }
+        launchAtLogin = SMAppService.mainApp.status == .enabled
         showNotifications = false
         cpuAlertThreshold = 90.0
         memoryAlertThreshold = 85.0
@@ -103,6 +131,11 @@ final class SettingsManager {
         networkHistoryPoints = 60
         useFahrenheit = false
         processSortBy = .cpu
+        save()
+    }
+
+    func completeOnboarding() {
+        hasCompletedOnboarding = true
         save()
     }
 }

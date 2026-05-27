@@ -28,17 +28,29 @@ final class DiskMonitor {
     }
 
     private func updateVolumes() {
-        let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: [.volumeNameKey, .volumeIsLocalKey], options: .skipHiddenVolumes) ?? []
+        let resourceKeys: [URLResourceKey] = [
+            .volumeNameKey,
+            .volumeTotalCapacityKey,
+            .volumeAvailableCapacityKey,
+            .volumeAvailableCapacityForImportantUsageKey
+        ]
+        let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: resourceKeys, options: .skipHiddenVolumes) ?? []
         let bootURL = URL(fileURLWithPath: "/")
 
         var newVolumes: [VolumeInfo] = []
         for url in urls {
             var stat = statfs()
-            guard statfs(url.path, &stat) == 0 else { continue }
+            let hasStat = statfs(url.path, &stat) == 0
 
-            let total = UInt64(stat.f_blocks) * UInt64(stat.f_bsize)
-            let available = UInt64(stat.f_bavail) * UInt64(stat.f_bsize)
-            let name = (try? url.resourceValues(forKeys: [.volumeNameKey]).volumeName) ?? url.path
+            let resourceValues = try? url.resourceValues(forKeys: Set(resourceKeys))
+            let total = resourceValues?.volumeTotalCapacity.map(UInt64.init)
+                ?? (hasStat ? UInt64(stat.f_blocks) * UInt64(stat.f_bsize) : 0)
+            let available = resourceValues?.volumeAvailableCapacityForImportantUsage.map { UInt64(max($0, 0)) }
+                ?? resourceValues?.volumeAvailableCapacity.map(UInt64.init)
+                ?? (hasStat ? UInt64(stat.f_bavail) * UInt64(stat.f_bsize) : 0)
+            let name = resourceValues?.volumeName ?? url.path
+
+            guard total > 0 else { continue }
 
             let isBoot = url.path == bootURL.path
             newVolumes.append(VolumeInfo(name: name, path: url.path, totalBytes: total, availableBytes: available, isBootVolume: isBoot))

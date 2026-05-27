@@ -51,8 +51,11 @@ struct MenuBarView: View {
                     }
                 }
             } label: {
-                Text("Every \(Int(settings.updateInterval))s")
-                    .font(.caption)
+                ControlPillLabel(
+                    title: "Every \(Int(settings.updateInterval))s",
+                    systemImage: "clock",
+                    tint: .accentColor
+                )
             }
             .menuStyle(.borderlessButton)
             .help("Refresh rate")
@@ -64,22 +67,21 @@ struct MenuBarView: View {
             } label: {
                 Image(systemName: "list.bullet.rectangle")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(PanelIconButtonStyle(tint: .cyan))
             .help("Open Top Processes")
 
-            SettingsLink {
+            Button {
+                openSettingsShortcut()
+            } label: {
                 Image(systemName: "gear")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(PanelIconButtonStyle(tint: .accentColor))
             .help("Settings")
-            .simultaneousGesture(TapGesture().onEnded {
-                AppWindows.presentSettings()
-            })
 
             Button(action: quit) {
                 Image(systemName: "power")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(PanelIconButtonStyle(tint: .secondary))
             .help("Quit SiliconPulse")
         }
         .padding(.horizontal, DesignTokens.panelPadding)
@@ -101,8 +103,14 @@ struct MenuBarView: View {
             Spacer()
             Image(systemName: "cpu")
                 .font(.title2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.cyan)
                 .symbolRenderingMode(.hierarchical)
+                .padding(8)
+                .background(.cyan.opacity(0.16), in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(.cyan.opacity(0.28), lineWidth: 1)
+                }
         }
         .padding(DesignTokens.panelPadding)
     }
@@ -123,9 +131,11 @@ struct MenuBarView: View {
                     }
                 }
                 UsageGauge(value: systemMonitor.cpuUsage, showLabel: false)
-                if !systemMonitor.cpuHistory.isEmpty {
-                    SparklineChart(data: systemMonitor.cpuHistory, yDomain: 0...100)
-                }
+                MetricTrendChart(
+                    data: systemMonitor.cpuHistory,
+                    yDomain: 0...100,
+                    tint: DesignTokens.usageTint(systemMonitor.cpuUsage)
+                )
                 if settings.showCoreDetails && !systemMonitor.coreUsages.isEmpty {
                     coreBars
                 }
@@ -139,9 +149,11 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: DesignTokens.rowSpacing) {
                 MetricRow(value: Formatters.percentage(gpuMonitor.gpuUsage))
                 UsageGauge(value: gpuMonitor.gpuUsage, showLabel: false)
-                if !gpuMonitor.gpuHistory.isEmpty {
-                    SparklineChart(data: gpuMonitor.gpuHistory, yDomain: 0...100)
-                }
+                MetricTrendChart(
+                    data: gpuMonitor.gpuHistory,
+                    yDomain: 0...100,
+                    tint: DesignTokens.usageTint(gpuMonitor.gpuUsage)
+                )
             }
         }
     }
@@ -159,9 +171,11 @@ struct MenuBarView: View {
                         .foregroundStyle(DesignTokens.usageTint(systemMonitor.memoryUsage))
                 }
                 UsageGauge(value: systemMonitor.memoryUsage, showLabel: false)
-                if !systemMonitor.memoryHistory.isEmpty {
-                    SparklineChart(data: systemMonitor.memoryHistory, yDomain: 0...100)
-                }
+                MetricTrendChart(
+                    data: systemMonitor.memoryHistory,
+                    yDomain: 0...100,
+                    tint: DesignTokens.usageTint(systemMonitor.memoryUsage)
+                )
                 if settings.showMemoryDetails {
                     memoryBreakdown
                 }
@@ -206,9 +220,13 @@ struct MenuBarView: View {
                 } label: {
                     Label("Upload", systemImage: "arrow.up.circle")
                 }
-                if !networkMonitor.networkHistory.isEmpty {
-                    SparklineChart(data: networkMonitor.networkHistory.map(\.download))
-                }
+                MetricTrendChart(
+                    data: networkMonitor.networkHistory.map(\.download),
+                    secondaryData: networkMonitor.networkHistory.map(\.upload),
+                    tint: DesignTokens.networkDownloadTint,
+                    secondaryTint: DesignTokens.networkUploadTint,
+                    valueFormatter: { Formatters.networkSpeed($0, useBits: settings.useBitsPerSecond) }
+                )
                 LabeledContent("Session") {
                     Text("\(Formatters.bytes(UInt64(networkMonitor.totalDownloadSession))) ↓ · \(Formatters.bytes(UInt64(networkMonitor.totalUploadSession))) ↑")
                         .font(.caption)
@@ -228,7 +246,7 @@ struct MenuBarView: View {
                             Text(Formatters.percentage(volume.usagePercent))
                                 .monospacedDigit()
                         }
-                        Text("\(Formatters.bytes(volume.availableBytes)) available of \(Formatters.bytes(volume.totalBytes))")
+                        Text("\(Formatters.storage(volume.availableBytes)) available of \(Formatters.storage(volume.totalBytes))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         UsageGauge(value: volume.usagePercent, showLabel: false)

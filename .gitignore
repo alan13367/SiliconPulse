@@ -2,8 +2,10 @@
 .env
 /dmg_staging
 /build
+/dist
 *.dmg
 SiliconPulse/AppIcon.iconset
 xcuserdata/
 *.xcuserstate
 DerivedData/
+.codex/*

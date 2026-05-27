@@ -90,7 +90,7 @@ final class ProcessMonitor {
 
                 processes = processData.map { data in
                     var cpu: Double = 0
-                    if let prev = previousProcessTimes[data.pid] {
+                    if let prev = previousProcessTimes[data.pid], data.totalTime >= prev.totalTime {
                         let procDelta = Double(data.totalTime - prev.totalTime)
                         cpu = procDelta * scale
                         cpu = min(max(cpu, 0), 100 * numCores)
@@ -114,10 +114,9 @@ final class ProcessMonitor {
             }
         }
 
-        let currentPids = Set(pids.prefix(actualPidsCount))
         previousProcessTimes = processData.reduce(into: [:]) { dict, data in
             dict[data.pid] = (totalTime: data.totalTime, timestamp: now)
-        }.filter { currentPids.contains($0.key) }
+        }
 
         previousHostTotalTime = hostTotalTime
         previousHostTimestamp = now

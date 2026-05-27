@@ -9,13 +9,18 @@ enum DesignTokens {
     static let rowSpacing: CGFloat = 6
     static let panelPadding: CGFloat = 16
     static let sectionRadius: CGFloat = 10
-    static let sparklineHeight: CGFloat = 28
+    static let gaugeHeight: CGFloat = 10
+    static let trendChartHeight: CGFloat = 44
+    static let trendChartRadius: CGFloat = 7
 
     static func usageTint(_ value: Double) -> Color {
         if value < 50 { return .green }
         if value < 80 { return .orange }
         return .red
     }
+
+    static let networkDownloadTint = Color.cyan
+    static let networkUploadTint = Color.indigo
 }
 
 extension View {

@@ -29,6 +29,7 @@ struct SiliconPulseApp: App {
             MenuBarIconView()
                 .environment(systemMonitor)
                 .environment(thermalMonitor)
+                .environment(settingsManager)
         }
         .menuBarExtraStyle(.window)
         .commands {
@@ -47,6 +48,12 @@ struct SiliconPulseApp: App {
         }
         .defaultSize(width: 900, height: 560)
 
+        Window("Welcome to SiliconPulse", id: "onboarding") {
+            OnboardingView()
+                .environment(settingsManager)
+        }
+        .defaultSize(width: 520, height: 420)
+
         Settings {
             SettingsView()
                 .environment(systemMonitor)
@@ -58,7 +65,10 @@ struct SiliconPulseApp: App {
 struct MenuBarIconView: View {
     @Environment(SystemMonitor.self) var systemMonitor
     @Environment(ThermalMonitor.self) var thermalMonitor
+    @Environment(SettingsManager.self) var settings
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
+    @State private var didRequestOnboarding = false
 
     var body: some View {
         HStack(spacing: 5) {
@@ -81,5 +91,16 @@ struct MenuBarIconView: View {
             openSettings()
             AppWindows.presentSettings()
         }
+        .task {
+            openOnboardingIfNeeded()
+        }
+    }
+
+    @MainActor
+    private func openOnboardingIfNeeded() {
+        guard !didRequestOnboarding, !settings.hasCompletedOnboarding else { return }
+        didRequestOnboarding = true
+        openWindow(id: "onboarding")
+        AppWindows.presentOnboarding()
     }
 }

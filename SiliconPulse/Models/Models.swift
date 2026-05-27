@@ -48,14 +48,15 @@ struct SystemInfo: Sendable {
 }
 
 struct VolumeInfo: Identifiable, Sendable {
-    let id = UUID()
     let name: String
     let path: String
     let totalBytes: UInt64
     let availableBytes: UInt64
     var isBootVolume: Bool = false
 
-    var usedBytes: UInt64 { totalBytes - availableBytes }
+    var id: String { path }
+
+    var usedBytes: UInt64 { totalBytes > availableBytes ? totalBytes - availableBytes : 0 }
     var usagePercent: Double {
         totalBytes > 0 ? Double(usedBytes) / Double(totalBytes) * 100.0 : 0
     }

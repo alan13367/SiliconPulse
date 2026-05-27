@@ -31,8 +31,8 @@ final class SystemMonitor {
     private var previousCPUTime: UInt64 = 0
 
     private init() {
-        setupSystemInfo()
         setupCoreCounts()
+        setupSystemInfo()
         startMonitoring()
     }
 
@@ -269,7 +269,7 @@ final class SystemMonitor {
 
         guard let client = IOHIDEventSystemClientCreate(kCFAllocatorDefault) else { return 0 }
         let matching: [String: Any] = ["PrimaryUsagePage": 0xff00 as NSNumber, "PrimaryUsage": 0x0005 as NSNumber]
-        IOHIDEventSystemClientSetMatching(client, matching as CFDictionary)
+        _ = IOHIDEventSystemClientSetMatching(client, matching as CFDictionary)
         guard let services = IOHIDEventSystemClientCopyServices(client) else { return 0 }
 
         let servicesArray = services as NSArray

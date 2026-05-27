@@ -32,8 +32,15 @@ struct GeneralSettingsView: View {
                 .pickerStyle(.segmented)
                 .onChange(of: settings.updateInterval) { settings.save() }
 
-                Toggle("Launch at Login", isOn: $settings.launchAtLogin)
-                    .onChange(of: settings.launchAtLogin) { settings.save() }
+                Toggle("Launch at Login", isOn: Binding(
+                    get: { settings.launchAtLogin },
+                    set: { settings.setLaunchAtLogin($0) }
+                ))
+                if let error = settings.launchAtLoginError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             } header: {
                 Text("Update Preferences")
             }
@@ -155,7 +162,7 @@ struct AboutView: View {
             Text("SiliconPulse")
                 .font(.title2.weight(.semibold))
 
-            Text("Version 1.1.0")
+            Text("Version \(appVersion)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -182,5 +189,9 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
             Text(value)
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
     }
 }

@@ -8,22 +8,35 @@ extension Notification.Name {
 enum AppWindows {
     static let settingsTitle = "Settings"
     static let processesTitle = "Top Processes"
+    static let onboardingTitle = "Welcome to SiliconPulse"
 
-    /// Call before `openSettings()` or after `SettingsLink` — activates app, dismisses menu popup, focuses Settings.
+    /// Call after `openSettings()` — activates app, dismisses menu popup, focuses Settings.
     @MainActor
     static func presentSettings() {
-        NSApp.activate(ignoringOtherApps: true)
+        activateApp()
         dismissMenuBarPanelIfNeeded()
-        focusSettingsWindow(retries: 6)
+        focusSettingsWindow(retries: 12)
     }
 
     /// Opens Top Processes using SwiftUI `openWindow`, then reliably brings it to the front.
     @MainActor
     static func openProcesses(using openWindow: OpenWindowAction) {
-        NSApp.activate(ignoringOtherApps: true)
+        activateApp()
         dismissMenuBarPanelIfNeeded()
         openWindow(id: "processes")
-        focusWindow(title: processesTitle, retries: 6)
+        focusWindow(title: processesTitle, retries: 12)
+    }
+
+    @MainActor
+    static func presentOnboarding() {
+        activateApp()
+        focusWindow(title: onboardingTitle, retries: 12)
+    }
+
+    @MainActor
+    private static func activateApp() {
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @MainActor
@@ -46,8 +59,7 @@ enum AppWindows {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             if let window = locateSettingsWindow() {
-                window.makeKeyAndOrderFront(nil)
-                window.orderFrontRegardless()
+                bringToFront(window)
                 return
             }
             focusSettingsWindow(retries: retries, attempt: attempt + 1)
@@ -61,8 +73,7 @@ enum AppWindows {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             if let window = locateWindow(matchingTitle: title) {
-                window.makeKeyAndOrderFront(nil)
-                window.orderFrontRegardless()
+                bringToFront(window)
                 return
             }
             focusWindow(title: title, retries: retries, attempt: attempt + 1)
@@ -89,5 +100,22 @@ enum AppWindows {
             if w.identifier?.rawValue == title { return w }
         }
         return nil
+    }
+
+    @MainActor
+    private static func bringToFront(_ window: NSWindow) {
+        window.deminiaturize(nil)
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+
+        let previousLevel = window.level
+        window.level = .floating
+        window.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            if window.isVisible {
+                window.level = previousLevel
+            }
+        }
     }
 }
