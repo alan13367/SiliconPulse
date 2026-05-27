@@ -53,7 +53,7 @@ Reading fan speeds uses SMC via IOKit. **Writing** fan speeds on Apple Silicon r
 
 ### Homebrew
 
-Homebrew support is prepared as a cask template in `packaging/homebrew/Casks/siliconpulse.rb`. For a personal tap, the target install command is:
+Homebrew support is available through the personal tap:
 
 ```bash
 brew tap alan13367/tap
@@ -61,6 +61,8 @@ brew install --cask siliconpulse
 ```
 
 Official Homebrew submission requires a stable public release artifact that passes Gatekeeper on supported macOS versions.
+
+This build is distributed without Apple notarization. If macOS blocks the app after installation, right-click **SiliconPulse.app** and choose **Open**.
 
 ## Usage
 

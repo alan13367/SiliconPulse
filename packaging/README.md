@@ -39,7 +39,7 @@ spctl -a -vv -t exec /Applications/SiliconPulse.app
 
 ## Homebrew
 
-For a personal tap, copy `packaging/homebrew/Casks/siliconpulse.rb` into a repository named `homebrew-tap` under `Casks/siliconpulse.rb`. Users can then install with:
+The personal tap lives at `alan13367/homebrew-tap`. Users can install with:
 
 ```bash
 brew tap alan13367/tap
